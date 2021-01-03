@@ -12,7 +12,7 @@ NVCCLIBS	= -lcudart
 
 TARGET		= main.exe
 DEPS		= main gpuDAVertexer
-CUDEPS		= gpuDAVertexer
+CUDEPS		= main gpuDAVertexer
 
 OBJ_  := $(DEPS:%=$(OBJ)/%.o)
 OBJCU_  := $(CUDEPS:%=$(OBJ)/%cu.o)

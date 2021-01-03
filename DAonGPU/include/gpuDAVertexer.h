@@ -31,7 +31,7 @@ namespace gpuDAVertexer{
         
 	DAVertexer( float tmin=0.5); 
         
-	ZVertexSoA* makeAsync(ZTrackSoA * track);
+	ZVertexSoA* makeAsync(ZTrackSoA * track,int n=20);
     
     private:
 

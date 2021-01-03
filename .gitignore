@@ -6,3 +6,6 @@
 *.fatbin
 *.o
 *.root
+*.csv
+*.exe
+*.log
