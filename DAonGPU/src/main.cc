@@ -9,12 +9,16 @@ int main()
 
 	ZTrackSoA * tracksInGPU;
 
-	tracksInGPU=loadTracksToGPU("tracks.csv");
+	// ZTrackSoA* loadTracksToGPU(std::string csv_fname, int nvts=20,int evtStart=0,int evtEnd=20 );
+	tracksInGPU=loadTracksToGPU("tracks.csv",5);
 	
 	gpuDAVertexer::DAVertexer demoVertexer(5.5);
 	
-	demoVertexer.makeAsync(tracksInGPU,20);
-
+	for(int i=0;i<5;i++)
+	{
+	        cout<<"\n Doing vertexing for event "<<i<<"\n";
+		demoVertexer.makeAsync(&tracksInGPU[i],20) ; // the 20 here does not have any meaning , was a prameter passed for testing
+	}
 	return 0;
 }
 

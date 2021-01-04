@@ -6,10 +6,10 @@
 #include "stdint.h"
 
 namespace gpuDAVertexer{
-
-    struct Workspace{
     static constexpr uint32_t MAXTRACKS = ZVertexSoA::MAXTRACKS;
     static constexpr uint32_t MAXVTX = ZVertexSoA::MAXVTX;
+
+    struct Workspace{
 
  // Track Parameters 
     uint32_t ntrks;
@@ -21,8 +21,19 @@ namespace gpuDAVertexer{
 // Vertex Parameters
     float zVtx[MAXVTX];
 
-//    __host__ __device_ void init() { ntrks=0; }
+// DA variables 
 
+    float beta;
+    float betaSplitMax;
+    float betaMax;
+    float betaFactor;
+    float maxDZforMerge;
+
+    float Eik[200]; // TODO :  size needs to be fixed, based on the algo.
+    float rho[200];
+    
+    // and many more to be added as developemnt prgresses
+    
     };
 
     class DAVertexer{
