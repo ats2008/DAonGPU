@@ -5,6 +5,15 @@ Deterministic Anneling fro vertex finding for CMS event reconstruction. This is 
 - makeCSVofTracks.cc   : root macro that coverts the \*.root file to csv file
 
 ## Basic Workflow
+**Development workflow for kernels**
+```
+# compiling the code with nvcc on a cuda supported system
+nvcc  sketch_DA_v7.cu  -o dav1.exe
+
+# running the binary
+./dav1.exe
+```
+
 
 **Extracting General Tracks as csv files from cms GEN-SIM-RECO files**
 This wflow saves the reconstructed track and vertex details to a root tree and writes it out to a .root file. (do not know how to acces thye presice gen-particle details !! TODO : to check it out later)
