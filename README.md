@@ -9,6 +9,7 @@ Deterministic Anneling fro vertex finding for CMS event reconstruction. This is 
 ```
 git clone git@github.com:ats2008/DAonGPU.git
 cd DAonGPU
+git checkout da_v0
 cd DA_v0
 # compiling the code with nvcc on a cuda supported system
 nvcc  sketch_DA_v7.cu  -o dav1.exe
