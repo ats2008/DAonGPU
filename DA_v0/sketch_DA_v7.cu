@@ -591,7 +591,8 @@ int main(void)
 	float *tracks_d, *z_d, *sig_d, *p_d, *rho_d; // device data
 	float *T_num_d; // device data
 	
-	int N = 15, nBytes_data, nBytes_Vertex, i ;
+	const int N = 15;
+	int nBytes_data, nBytes_Vertex, i ;
 	int MaxNVetex	= 3 ;
 	
 	// AUXILIARY variables
@@ -879,7 +880,7 @@ int main(void)
 	
 	// DO A LOOP
 
-  int len_beta = 5 ;	
+  const int len_beta = 5 ;	
   float beta_range [len_beta] = {1.0e-03, 5.0e-03, 9.0e-03, 1.0e-02, 2.5e-02};
   //  int len_beta =21;	
   //float beta_range [len_beta] = {1.0e-03, 5.0e-03, 9.0e-03, 1.0e-02, 2.5e-02, 4.0e-02, 5.5e-02,7.0e-02, 8.5e-02, 1.0e-01, 1.0e-01, 6.0e-01, 1.1e+00, 1.6e+00, 2.1e+00, 2.6e+00, 3.1e+00, 3.6e+00, 4.1e+00, 4.6e+00, 5.1e+00};
