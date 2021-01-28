@@ -26,10 +26,11 @@ ZTrackSoA * loadTracksToGPU(std::string csv_fname,int nevts , int evtStart, int 
 	string line,word;
 
 	int idx(-1),trackCount;
+	printf(" reading %d events ",nevts);
 	getline(csvfile,line);
 	do{
 		row.clear();
-		// cout<<"line = "<<line<<"\n";	
+		//cout<<"line = "<<line<<"\n";	
 		if(line[0]=='#'){line=""; continue;}
 		
 		stringstream s(line);
