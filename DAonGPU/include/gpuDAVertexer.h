@@ -13,12 +13,16 @@ namespace gpuDAVertexer{
 
  // Track Parameters 
     uint32_t nTracks;
+    uint32_t nVertex  ;
+
     uint16_t itrk[MAXTRACKS];
     float zt[MAXTRACKS];
     float dz2[MAXTRACKS];
     float pi[MAXTRACKS];
 
 //  DA workspace variables
+    float FEnergyA [MAXTRACKS*MAXVTX];
+    
     float pik      [MAXTRACKS*MAXVTX];
     float pik_numer[MAXTRACKS*MAXVTX];
     float pik_denom[MAXTRACKS*MAXVTX];
