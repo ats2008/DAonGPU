@@ -5,7 +5,7 @@
 
 struct ZTrackSoA {
    
-    static constexpr uint32_t MAXTRACKS = 32 * 1024;
+    static constexpr uint32_t MAXTRACKS = 1024;
     uint32_t evtID;	
     uint32_t ntrks;
     uint16_t itrk[MAXTRACKS];
