@@ -143,14 +143,15 @@ __global__ void kernel_p_ik_num( float *p_ik, float *z_i, float *z_k0,   float *
 */
     //printf("idx  %d output[idx] %f \n", idx, a[idx] );
     if (gid < TotalSize) {
-       p_ik[gid] =  expf(-beta*(((z_i[idx]-z_k0[bid])*(z_i[idx]-z_k0[bid]))/(sig[idx]*sig[idx]*sig[idx]*sig[idx])) );
+       p_ik[gid] =  exp(-beta*(((z_i[idx]-z_k0[bid])*(z_i[idx]-z_k0[bid]))/(sig[idx]*sig[idx]*sig[idx]*sig[idx])) );
        
        
       //  p_ik[gid] =  exp(-beta*(z_i[idx]-z_k0[bid])*(z_i[idx]-z_k0[bid]));
         
         
         // expf(-beta*(((z_i[idx]-z_k0[bid])*(z_i[idx]-z_k0[bid]))/(sig[idx]*sig[idx]*sig[idx]*sig[idx])) );
-        //printf("idx %d bid %d gid %d z_i[idx] %f z_k0[bid] %f p_ik[gid] %.10e   beta_d %f\n", idx, bid, gid, z_i[idx],z_k0[bid], p_ik[gid], beta  );
+        //printf("i %d b %d g %d z_i[idx] %f z_k0[bid] %f p_ik[gid] %.10e   beta_d %f\n", idx, bid, gid, z_i[idx],z_k0[bid], p_ik[gid], beta  );
+       // printf("idx %d bid %d gid %d z_i[idx] %f z_k0[bid] %f p_ik[gid] %.10e   beta_d %f\n", idx, bid, gid, z_i[idx],z_k0[bid], p_ik[gid], beta  );
     }
 
 }
@@ -201,7 +202,7 @@ __global__ void kernel_p_ik( float *p_ik, float *p_ik_den, int N, int numberOfve
     if (gid < TotalSize) { 
     
     if (p_ik_den[oid] > 1.e-45) {   
-        p_ik[gid] =  p_ik[gid]/p_ik_den[oid] ;
+        p_ik[gid] =  p_ik[gid]/p_ik_den[idx] ;
         }
         else{  
         p_ik[gid] =  0.000 ;     
@@ -282,23 +283,23 @@ __global__ void kernel_z_ik_den( float *p_ik, float *z_ik_den, float *p_i, float
 
 }
 
-__global__ void sumBlock_with_loop(float *in, float *out, int blockSize)
+__global__ void sumBlock_with_loop(float *in, float *out, int blockSize, int numberOfvertex)
 { 
 	int gid = blockIdx.x * blockDim.x + threadIdx.x; 
 	int tid = threadIdx.x; 
-	//int bid = blockIdx.x ;
+	int bid = blockIdx.x ;
 	int off ;
 	//  !!!!!!  Warning Warp Divergence !!!!!! 
-	out[tid] = in[tid]; 
+	//out[tid] = in[tid]; 
 	//printf(" __float2uint_ru(float(blockSize)/2) %d gridDim.x %d ",__float2uint_ru(float(blockSize)/2),gridDim.x)
  
-	for (int offset =  __float2uint_ru(float(gridDim.x)/2)  ; offset > 0; offset /= 2)  
+	for (int offset =  __float2uint_ru(float(numberOfvertex)/2)  ; offset > 0; offset /= 2)  
 	{        	  
 	  //off = blockSize*  offset *gridDim.x + tid; 
 	  off = blockSize* offset + tid; 
 	  
 	  out[gid] =  out[gid] + in[off];     
-	 //printf(" off %d tid %d  bid %d gid %d off  %d out[tid] %.5e  out[gid] %.5e  in[gid] %.5e   in[off] %.5e \n",offset, tid, bid, gid, off, out[tid] , out[gid], in[gid], in[off]);    
+	//  printf(" off %d tid %d  bid %d gid %d off  %d out[tid] %.5e  out[gid] %.5e  in[gid] %.5e   in[off] %.5e \n",offset, tid, bid, gid, off, out[tid] , out[gid], in[gid], in[off]);    
 	}  
  
 } 
@@ -591,8 +592,7 @@ int main(void)
 	float *tracks_d, *z_d, *sig_d, *p_d, *rho_d; // device data
 	float *T_num_d; // device data
 	
-	const int N = 15;
-	int nBytes_data, nBytes_Vertex, i ;
+	int N = 15, nBytes_data, nBytes_Vertex, i ;
 	int MaxNVetex	= 3 ;
 	
 	// AUXILIARY variables
@@ -880,18 +880,21 @@ int main(void)
 	
 	// DO A LOOP
 
-  const int len_beta = 5 ;	
+  int len_beta = 5 ;	
   float beta_range [len_beta] = {1.0e-03, 5.0e-03, 9.0e-03, 1.0e-02, 2.5e-02};
   //  int len_beta =21;	
   //float beta_range [len_beta] = {1.0e-03, 5.0e-03, 9.0e-03, 1.0e-02, 2.5e-02, 4.0e-02, 5.5e-02,7.0e-02, 8.5e-02, 1.0e-01, 1.0e-01, 6.0e-01, 1.1e+00, 1.6e+00, 2.1e+00, 2.6e+00, 3.1e+00, 3.6e+00, 4.1e+00, 4.6e+00, 5.1e+00};
   
+  z_h[0]= 22.1095;  z_h[1]= 22.936;  z_h[2]= 24.8449;
   
-  
-  
+  cudaMemcpy(z_d,z_h, nBytes_Vertex, cudaMemcpyHostToDevice);	
+          
   std::cout << "-z_k before loop = "<< z_h[0] <<" | "<< z_h[1] <<" | "<< z_h[2] <<std::endl; 
 	
-  for (int i_b=0; i_b<2; i_b++){ 	 //len_beta       
+  for (int i_b=0; i_b<1; i_b++){ 	 //len_beta       
 	beta = beta_range[i_b];
+	
+	printf("\n=============================\n" );
 	printf("===== %d to %d beta %f  =====\n",i_b,len_beta-1,beta );
 	std::cout << "-z_k beta loop = "<< z_h[0] <<" | "<< z_h[1] <<" | "<< z_h[2] <<std::endl; 
 	std::cout << "    "  << std::endl; 
@@ -914,13 +917,13 @@ int main(void)
 
 	// C3PO
 	 
-	// std::cout << "-pos kernel kernel_p_ik_num \n"<< std::endl;
+	
 	 //std::cout << " p_ik_h \n"<< std::endl;  
-//	for (i=0; i< Total; i++)	{ printf("after i  %d  p_ik_h[i] %.10e \n",i, p_ik_h[i]); }
+ 	for (i=0; i< N; i++)	{ printf("after i  %d  p_ik_h[i] %.10e, %.10e, %.10e \n",i, p_ik_h[i], p_ik_h[i+15], p_ik_h[i+30]); }
 	 //for (i=0; i< Total; i++)	{ printf(" %.10e, ", p_ik_h[i]); }
 	 //std::cout << " end 9 "<< std::endl;  
 //	 std::cout << "       "<< std::endl; 
- 
+	 std::cout << "-pos kernel kernel_p_ik_num \n"<< std::endl;
 	 
 	//int nBytes1; nBytes1 = MaxNVetex*sizeof(float);  
 	 
@@ -930,6 +933,9 @@ int main(void)
 	
  
 	 for (i=0; i< Total; i++)	{  p_ik_den_h[i]= p_ik_h[i]; }	
+	 //for (i=0; i< N; i++)	{  printf("before i  %d  p_ik_den_h[i] %.10e, %.10e, %.10e \n",i, p_ik_den_h[i], p_ik_den_h[i+15], p_ik_den_h[i+30]);} 
+	 
+	 
 	 /*
 	 for (i=0; i< Total; i++)	{ 	 
 	     if (i%15 == 0) { 
@@ -944,14 +950,17 @@ int main(void)
         	
 	 //kernel_p_ik_den <<<3,Total>>> (p_ik_d, p_ik_den_d, rho_d, Total); 
 	 printf("-pre-kernel sumBlock_with_loop \n");
-	 sumBlock_with_loop <<<3,N>>> (p_ik_den_d,p_ik_den_d,N);
+	 
+	 int half_vertex = 2/2;
+	 sumBlock_with_loop <<<half_vertex,N>>> (p_ik_den_d,p_ik_den_d,N,3);
 	 printf("-pos-kernel sumBlock_with_loop \n");
 	 	 
 	 cudaMemcpy(p_ik_den_h, p_ik_den_d, nBytes_p_ik, cudaMemcpyDeviceToHost);	 
-	 //std::cout << "\n=======  p_ik_den_h[i] \n "<< std::endl;  
+	// std::cout << "\n=======  p_ik_den_h[i] \n "<< std::endl;  
 	 //for (i=0; i< Total; i++)	{ printf("after i  %d  p_ik_den_h[i] %e ",i, p_ik_den_h[i]); } //%.10e 
+  	  for (i=0; i< N; i++)	{ printf("after i  %d  p_ik_den_h[i] %.10e, %.10e, %.10e \n",i, p_ik_den_h[i], p_ik_den_h[i+15], p_ik_den_h[i+30]); }
 	 //std::cout << "\n end 11 "<< std::endl;  
-	 //std::cout << "       "<< std::endl; 	 
+	 std::cout << "       "<< std::endl; 	 
 	 
 	  
         cudaMemcpy(p_ik_d, p_ik_h, nBytes_p_ik, cudaMemcpyHostToDevice);	 	 
@@ -967,10 +976,11 @@ int main(void)
 	cudaMemcpy(p_ik_h, p_ik_d, nBytes_p_ik, cudaMemcpyDeviceToHost);		 
 	 
  
-	 //std::cout << "\n final p_ik_h[i] \n "<< std::endl;  
-	 //for (i=0; i< Total; i++)	{ printf("after i  %d  p_ik_h[i] %e \n",i, p_ik_h[i]); } //%.10e 
-	 //std::cout << " end 11 "<< std::endl;  
-	 //std::cout << "       "<< std::endl; 		
+	  std::cout << "\n final p_ik_h[i] \n "<< std::endl;  
+ 	//for (i=0; i< Total; i++) { printf("after i  %d  p_ik_h[i] %e \n",i, p_ik_h[i]); } //%.10e 
+ 	for (i=0; i< N; i++)	{ printf("after i  %d  p_ik_h[i] %.10e, %.10e, %.10e \n",i, p_ik_h[i], p_ik_h[i+15], p_ik_h[i+30]); }
+	  std::cout << " end 11 "<< std::endl;  
+	  std::cout << "       "<< std::endl; 		
  
 	 
 	 
