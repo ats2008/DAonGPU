@@ -126,7 +126,7 @@ __global__ void kernel_findFreeEnergyPartB(float * FEnergyA, float beta, int cur
 		fEnergy-=logf(asum >1e-20 ? asum : 1.0 )/beta;
 	
 	}
-	printf("\n$FE,%f,%f\n",beta,fEnergy);
+	printf("\n$(beta , Free Energy) : ,%f,%f\n",beta,fEnergy);
 }
 
 
