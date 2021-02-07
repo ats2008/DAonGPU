@@ -237,14 +237,40 @@ __global__ void kernel_p_ik( float *p_ik, float *p_ik_den, int N, int numberOfve
 
 }
 
+__global__ void kernel_z_ik_num_DF( float *p_ik, float *z_ik_num, float *p_i, float *z_i, float *sig, int N, int numberOfvertex )
+{
 
+   auto strideLength=blockDim.x;
+   for(auto tid=threadIdx.x;tid<Ntracks;tid+=strideLength)
+   {
+     if(tid>Ntracks) break;
+
+     for(auto vid=0;vid<numberOfvertex;vid++)
+       	{
+		auto gid=tid+vid*Ntracks;
+                z_ik_num[gid] = p_i[tid]*p_ik[gid]*z_i[tid]/(sig[tid]*sig[tid]); 
+		printf("z_ik_num[%d] = %f ,tid  = %d , z_i[tid] = %f , p_i[tid]  = %f ,	sig[tid] = %f \n",gid,z_ik_num[gid],tid,z_i[tid],p_i[tid],sig[tid]);
+	
+	}
+   }
+
+
+}
+
+
+__device__ void kernel_z_ik_num_DF_DK( float *p_ik, float *z_ik_num, float *p_i, float *z_i, float *sig, int N, int numberOfvertex )
+{
+
+}
 __global__ void kernel_z_ik_num( float *p_ik, float *z_ik_num, float *p_i, float *z_i, float *sig, int N, int numberOfvertex )
 {
     int idx = threadIdx.x; 
     int gid = blockIdx.x * blockDim.x + idx;
     int TotalSize = N*numberOfvertex; //  nTracks * nVertex    
     if (gid < TotalSize) { 
-        z_ik_num[gid] = p_i[idx]*p_ik[gid]*z_i[idx]/(sig[idx]*sig[idx]); 
+        auto x  = p_i[idx]*p_ik[gid]*z_i[idx]/(sig[idx]*sig[idx]); 
+	printf("z_ik_num[%d] = %f ,idx  = %d , z_i[idx] = %f , p_i[idx]  = %f ,	sig[idx] = %f \n",gid,x,idx,z_i[idx],p_i[idx],sig[idx]);
+        //z_ik_num[gid] = p_i[idx]*p_ik[gid]*z_i[idx]/(sig[idx]*sig[idx]); 
 	//printf("z_ik_num[%d] = %f ,idx  = %d , z_i[idx] = %f , p_i[idx]  = %f ,	sig[idx] = %f \n",gid,z_ik_num[gid],idx,z_i[idx],p_i[idx],sig[idx]);
     }
 }
@@ -258,6 +284,8 @@ __global__ void kernel_z_ik_den( float *p_ik, float *z_ik_den, float *p_i, float
     if (gid < TotalSize) {  
         z_ik_den[gid] = p_i[idx]*p_ik[gid]/(sig[idx]*sig[idx]); 
 	//printf("z_ik_den[%d] = %f ,idx  = %d , p_i[idx]  = %f ,	sig[idx] = %f \n",gid,z_ik_den[gid],idx,p_i[idx],sig[idx]);
+//        auto x = p_i[idx]*p_ik[gid]/(sig[idx]*sig[idx]); 
+//	printf("z_ik_den[%d] = %f ,idx  = %d , p_i[idx]  = %f ,	sig[idx] = %f \n",gid,x,idx,p_i[idx],sig[idx]);
     }
 
 }
