@@ -131,8 +131,32 @@ __global__ void kernel_findFreeEnergyPartB(float * FEnergyA, float beta, int cur
 
 
 
-__global__ void kernel_p_ik_num( float *p_ik, float *z_i, float *z_k0,   float *sig, float beta, int N, int numberOfvertex )
+__device__ void kernel_p_ik_num_DEVICEFUNC( float *p_ik, float *z_i, float *z_k0,   float *sig, float beta, int Ntracks, int numberOfvertex,int strideMax )
 {
+	
+	auto strideLen = blockDim.x;
+
+	for(auto tid=threadIdx.x;tid<Ntracks;tid+=strideLen)
+	{
+	    for(auto vid=0;vid<numberOfvertex;vid++)
+	    {
+              auto gid = vid*Ntracks + tid ;
+	      p_ik[gid] =  expf( -beta*(((z_i[tid]-z_k0[vid])*(z_i[tid]-z_k0[vid]))/(sig[tid]*sig[tid]*sig[tid]*sig[tid])) );
+              //printf("DEVICE : gid = %d , dz = %f - %f = %f , pik = %f\n",gid,z_i[tid],z_k0[vid],z_i[tid]-z_k0[vid], p_ik[gid]);
+	      //auto x =  expf( -beta*(((z_i[tid]-z_k0[vid])*(z_i[tid]-z_k0[vid]))/(sig[tid]*sig[tid]*sig[tid]*sig[tid])) );
+              //printf("DEVICE : gid = %d , dz = %f - %f = %f , pik = %f\n",gid,z_i[tid],z_k0[vid],z_i[tid]-z_k0[vid], x);
+	    }
+	}
+}
+
+__global__ void kernel_p_ik_num_DEVICEFUNC_DUMMY_KERNEL( float *p_ik, float *z_i, float *z_k0,   float *sig, float beta, int Ntracks, int numberOfvertex,int strideMax )
+{
+    kernel_p_ik_num_DEVICEFUNC( p_ik,z_i,z_k0,sig,beta,Ntracks,numberOfvertex,strideMax);
+
+}
+__global__ void kernel_p_ik_num( float *p_ik, float *z_i, float *z_k0,   float *sig, float beta, int N, int numberOfvertex)
+{
+
 
     int idx = threadIdx.x; 
     int bid = blockIdx.x; // block Id
@@ -141,11 +165,48 @@ __global__ void kernel_p_ik_num( float *p_ik, float *z_i, float *z_k0,   float *
 
     if (gid < TotalSize) {
        p_ik[gid] =  expf( -beta*(((z_i[idx]-z_k0[bid])*(z_i[idx]-z_k0[bid]))/(sig[idx]*sig[idx]*sig[idx]*sig[idx])) );
-  //  printf("gid = %d , dz = %f - %f = %f , pik = %f\n",gid,z_i[idx],z_k0[bid],z_i[idx]-z_k0[bid], p_ik[gid]);
+    //   printf("GLOBAL : gid = %d , dz = %f - %f = %f , pik = %f\n",gid,z_i[idx],z_k0[bid],z_i[idx]-z_k0[bid], p_ik[gid]);
     }
-
 }
 
+__device__ void kernel_p_ik_DEVICEFUNC( float *p_ik, float *p_ik_den, int Ntracks, int numberOfvertex )
+{
+    
+   auto strideLength=blockDim.x;
+
+   for(auto tid=threadIdx.x;tid<Ntracks;tid+=strideLength)
+   {
+     if(tid>Ntracks) break;
+
+     for(auto vid=0;vid<numberOfvertex;vid++)
+       	{
+		auto gid=tid+vid*Ntracks;
+		auto oldval = p_ik[gid];
+		auto x = -1.0;
+		if (p_ik_den[tid] > 1.e-45) 
+   	 	{   
+   	     		p_ik[gid] =  p_ik[gid]/p_ik_den[tid] ;
+   	     		//x =  p_ik[gid]/p_ik_den[tid] ;
+   	 	}
+   	 	else
+   	 	{
+	   	     	p_ik[gid] =  0.000 ;     
+	   	     	x =  0.000 ;     
+   	 	}
+	 printf("DIVICE : pik[%d] = pik_[%d] / p_ik_den[%d] = %f/ %f = %f\n",\\
+    		gid,gid,tid,oldval,p_ik_den[tid],p_ik[gid]);
+ 	
+    	}
+   
+   }
+}
+
+__global__ void kernel_p_ik_DEVICEFUNC_DUMMY_KERNEL( float *p_ik, float *p_ik_den, int N, int numberOfvertex )
+{
+
+	kernel_p_ik_DEVICEFUNC(p_ik,p_ik_den,N,numberOfvertex);
+
+}
 __global__ void kernel_p_ik( float *p_ik, float *p_ik_den, int N, int numberOfvertex )
 {
     
@@ -157,17 +218,21 @@ __global__ void kernel_p_ik( float *p_ik, float *p_ik_den, int N, int numberOfve
     { 
 
 	 auto oldval=p_ik[gid];
+	 auto x=-1.0;
    	 if (p_ik_den[idx] > 1.e-45) 
    	 {   
-   	     p_ik[gid] =  p_ik[gid]/p_ik_den[idx] ;
+   	    // p_ik[gid] =  p_ik[gid]/p_ik_den[idx] ;
+   	     x =  p_ik[gid]/p_ik_den[idx] ;
    	 }
    	 else
    	 {
-   	     p_ik[gid] =  0.000 ;     
+   	     //p_ik[gid] =  0.000 ;     
+   	     x =  0.000 ;     
    	 }
 
-    printf("pik[%d] = pik_[%d] / p_ik_den[%d] = %f/ %f = %f\n",\\
-    		gid,gid,idx,oldval,p_ik_den[idx],p_ik[gid]);
+    printf("GLOBAL : pik[%d] = pik_[%d] / p_ik_den[%d] = %f/ %f = %f\n",\\
+    		gid,gid,idx,oldval,p_ik_den[idx],x);
+    		//gid,gid,idx,oldval,p_ik_den[idx],p_ik[gid]);
     }
 
 }
@@ -342,10 +407,18 @@ __device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 	auto N=wrkspace->nTracks;
 	auto CurrentNvetex=wrkspace->nVertex;
 	printf("with N = %d , CurrentNvetex = %d \n",N,CurrentNvetex);
+	
 	kernel_p_ik_num<<<CurrentNvetex, N>>>(wrkspace->pik,wrkspace->zt ,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);   	 
+	
+	cudaDeviceSynchronize();
+	auto numThreads=1024;
+	auto stride_max=( int((numThreads-1)/N) + 1 );
+	kernel_p_ik_num_DEVICEFUNC_DUMMY_KERNEL<<<1,numThreads>>>(wrkspace->pik,wrkspace->zt ,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex, stride_max);   	 
+	
 	sumBlock_with_loop <<<1,N>>> (wrkspace->pik,wrkspace->pik_denom,\\
 					CurrentNvetex,N);
 	kernel_p_ik<<<CurrentNvetex, N>>>(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);   	
+	kernel_p_ik_DEVICEFUNC_DUMMY_KERNEL<<<1,1024>>>(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);   	
 	cudaDeviceSynchronize();
 }
 
