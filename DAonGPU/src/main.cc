@@ -17,9 +17,9 @@ int main()
 	
 	gpuDAVertexer::DAVertexer demoVertexer(5.5);
 	
-	for(int i=0;i<1;i++)
+	for(int i=0;i<50;i++)
 	{
-	        cout<<"\n Doing vertexing for event "<<i<<"\n";
+	        cout<<"\n@ Doing vertexing for event , "<<i<<"\n";
 		demoVertexer.makeAsync(&tracksInGPU[i],20) ; // the 20 here does not have any meaning , was a prameter passed for testing
 	}
 	return 0;

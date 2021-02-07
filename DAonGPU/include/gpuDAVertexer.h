@@ -34,7 +34,12 @@ namespace gpuDAVertexer{
     float tc                [MAXVTX];	
     float tc_numer[MAXTRACKS*MAXVTX];
     float tc_denom[MAXTRACKS*MAXVTX];
+    
+  //  float rho     [MAXTRACKS*MAXVTX];
+  //  float rho_denom[MAXTRACKS*MAXVTX];
+  //  float rho_denom[MAXTRACKS*MAXVTX];
 
+    bool  hasThermalized;
 // Vertex Parameters
     float zVtx[MAXVTX];
 
@@ -47,7 +52,6 @@ namespace gpuDAVertexer{
     float maxDZforMerge;
 
     float Eik[200]; // TODO :  size needs to be fixed, based on the algo.
-    float rho[200];
     
     // and many more to be added as developemnt prgresses
     
