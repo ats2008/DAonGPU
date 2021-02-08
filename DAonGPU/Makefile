@@ -6,9 +6,9 @@ CXX 		= g++
 NVCC 		= nvcc
 
 LIBS		= -lm
-CXXFLAGS 	= -std=c++11 -I$(INCPATH) -g 
-NVCCFLAGS	=  -rdc=true -std=c++11 -I$(INCPATH) -g -G
-NVCCLIBS	= -lcudart
+CXXFLAGS 	= -std=c++11 -I$(INCPATH) -g -rdynamic 
+NVCCFLAGS	=  -rdc=true -std=c++11 -I$(INCPATH) -g  --generate-line-info -Xcompiler -rdynamic 
+NVCCLIBS	= -lcudart 
 
 TARGET		= main.exe
 DEPS		= main gpuDAVertexer
