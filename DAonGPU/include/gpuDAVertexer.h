@@ -39,7 +39,7 @@ namespace gpuDAVertexer{
   //  float rho_denom[MAXTRACKS*MAXVTX];
   //  float rho_denom[MAXTRACKS*MAXVTX];
 
-    bool  hasThermalized;
+    int   hasThermalized[1];
 // Vertex Parameters
     float zVtx[MAXVTX];
 
