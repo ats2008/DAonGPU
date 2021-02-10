@@ -90,23 +90,8 @@ __device__ void sumBlock_with_shfl_down_gid_DF(float *in, float *out, int Ntrack
 
  
 }
-__global__ void sumBlock_with_shfl_down_gid_DF_DK(float *in, float *out, int Ntracks,int Nvertices)
-{
 
-sumBlock_with_shfl_down_gid_DF(in,out,  Ntracks,Nvertices);
 
-}
-__global__ void sumBlock_with_shfl_down_gid(float *in, float *out, int blockSize)
-{ 
-
-	int gid = blockIdx.x * blockDim.x + threadIdx.x; 
-	for (int offset =  __float2uint_ru(float(blockSize)/2)  ; offset > 0; offset /= 2) // (blockSize/2)+1 
-	{        	 
-	  out[gid] +=  __shfl_down_sync(0xffffffff, out[gid], offset);     
-	}
-
- 
-}
 
 __device__ void sumBlock_with_loop_DF(float *in, float *out,int numVertices, int Ntracks)
 { 
@@ -123,24 +108,6 @@ __device__ void sumBlock_with_loop_DF(float *in, float *out,int numVertices, int
 	}
 //	printf("out[%d] = %f \n",tid,out[tid]);
 }
-__global__ void sumBlock_with_loop_DF_DK(float *in, float *out,int numVertices, int Ntracks)
-{
-    sumBlock_with_loop_DF(in,out,numVertices,Ntracks);
-}
-__global__ void sumBlock_with_loop(float *in, float *out,int numVertices, int Ntrks)
-{ 
-	int tid = threadIdx.x; 
-
-	int off ;
-	out[tid]=0.0;	
-	for (int offset = 0 ; offset<numVertices; offset++ )  
-	{        	  
-	  off = Ntrks*offset ;
-	  out[tid] += in[tid+off];     
-	}
-//	printf("out[%d] = %f \n",tid,out[tid]);
-}
-
 
 __global__ void kernel_findFreeEnergyPartA(float *FEnergyA,float * zi, float *zVtx,float* sig,float beta ,int CurrentVtx,int N )
 {
@@ -193,25 +160,6 @@ __device__ void kernel_p_ik_num_DF( float *p_ik, float *z_i, float *z_k0,   floa
 	}
 }
 
-__global__ void kernel_p_ik_num_DF_DK( float *p_ik, float *z_i, float *z_k0,   float *sig, float beta, int Ntracks, int numberOfvertex)
-{
-    kernel_p_ik_num_DF( p_ik,z_i,z_k0,sig,beta,Ntracks,numberOfvertex);
-
-}
-__global__ void kernel_p_ik_num( float *p_ik, float *z_i, float *z_k0,   float *sig, float beta, int N, int numberOfvertex)
-{
-
-
-    int idx = threadIdx.x; 
-    int bid = blockIdx.x; // block Id
-    int gid = blockIdx.x * blockDim.x + idx;
-    int TotalSize = N*numberOfvertex; //  nTracks * nVertex    
-
-    if (gid < TotalSize) {
-  //     p_ik[gid] =  expf( -beta*(((z_i[idx]-z_k0[bid])*(z_i[idx]-z_k0[bid]))/(sig[idx]*sig[idx]*sig[idx]*sig[idx])) );
-    //   printf("GLOBAL : gid = %d , dz = %f - %f = %f , pik = %f\n",gid,z_i[idx],z_k0[bid],z_i[idx]-z_k0[bid], p_ik[gid]);
-    }
-}
 
 __device__ void kernel_p_ik_DF( float *p_ik, float *p_ik_den, int Ntracks, int numberOfvertex )
 {
@@ -245,41 +193,6 @@ __device__ void kernel_p_ik_DF( float *p_ik, float *p_ik_den, int Ntracks, int n
    }
 }
 
-__global__ void kernel_p_ik_DF_DK( float *p_ik, float *p_ik_den, int N, int numberOfvertex )
-{
-
-	kernel_p_ik_DF(p_ik,p_ik_den,N,numberOfvertex);
-
-}
-__global__ void kernel_p_ik( float *p_ik, float *p_ik_den, int N, int numberOfvertex )
-{
-    
-    int idx = threadIdx.x; 
-    int gid = blockIdx.x * blockDim.x + idx;
-    int TotalSize = N*numberOfvertex; 
-
-    if (gid < TotalSize) 
-    { 
-
-	 auto oldval=p_ik[gid];
-	 auto x=-1.0;
-   	 if (p_ik_den[idx] > 1.e-45) 
-   	 {   
-   	    // p_ik[gid] =  p_ik[gid]/p_ik_den[idx] ;
-   	     x =  p_ik[gid]/p_ik_den[idx] ;
-   	 }
-   	 else
-   	 {
-   	     //p_ik[gid] =  0.000 ;     
-   	     x =  0.000 ;     
-   	 }
-
- //   printf("GLOBAL : pik[%d] = pik_[%d] / p_ik_den[%d] = %f/ %f = %f\n",\\
-    		gid,gid,idx,oldval,p_ik_den[idx],x);
-    		//gid,gid,idx,oldval,p_ik_den[idx],p_ik[gid]);
-    }
-
-}
 
 __device__ void kernel_z_ik_num_DF( float *p_ik, float *z_ik_num, float *p_i, float *z_i, float *sig, int Ntracks, int numberOfvertex )
 {
@@ -301,24 +214,7 @@ __device__ void kernel_z_ik_num_DF( float *p_ik, float *z_ik_num, float *p_i, fl
 }
 
 
-__global__ void kernel_z_ik_num_DF_DK( float *p_ik, float *z_ik_num, float *p_i, float *z_i, float *sig, int N, int numberOfvertex )
-{
 
-  kernel_z_ik_num_DF( p_ik , z_ik_num , p_i , z_i , sig ,  N ,  numberOfvertex );
-  __syncthreads();
-}
-__global__ void kernel_z_ik_num( float *p_ik, float *z_ik_num, float *p_i, float *z_i, float *sig, int N, int numberOfvertex )
-{
-    int idx = threadIdx.x; 
-    int gid = blockIdx.x * blockDim.x + idx;
-    int TotalSize = N*numberOfvertex; //  nTracks * nVertex    
-    if (gid < TotalSize) { 
-        auto x  = p_i[idx]*p_ik[gid]*z_i[idx]/(sig[idx]*sig[idx]); 
-       // printf("GLOBAL : z_ik_num[%d] = %f ,idx  = %d , z_i[idx] = %f , p_i[idx]  = %f ,	sig[idx] = %f \n",gid,x,idx,z_i[idx],p_i[idx],sig[idx]);
-       //z_ik_num[gid] = p_i[idx]*p_ik[gid]*z_i[idx]/(sig[idx]*sig[idx]); 
-      //  printf("z_ik_num[%d] = %f ,idx  = %d , z_i[idx] = %f , p_i[idx]  = %f ,	sig[idx] = %f \n",gid,z_ik_num[gid],idx,z_i[idx],p_i[idx],sig[idx]);
-    }
-}
 
 __device__ void kernel_z_ik_den_DF( float *p_ik, float *z_ik_den, float *p_i, float *z_i, float *sig, int Ntracks, int numberOfvertex )
 {
@@ -340,27 +236,6 @@ __device__ void kernel_z_ik_den_DF( float *p_ik, float *z_ik_den, float *p_i, fl
 
    }
 }
-__global__ void kernel_z_ik_den_DF_DK( float *p_ik, float *z_ik_den, float *p_i, float *z_i, float *sig, int N, int numberOfvertex )
-{
-kernel_z_ik_den_DF( p_ik, z_ik_den, p_i, z_i, sig,N, numberOfvertex );
-
-}
-
-__global__ void kernel_z_ik_den( float *p_ik, float *z_ik_den, float *p_i, float *z_i, float *sig, int N, int numberOfvertex )
-{
-    int idx = threadIdx.x; 
-    int gid = blockIdx.x * blockDim.x + idx;
-    int TotalSize = N*numberOfvertex; //  nTracks * nVertex    
-    if (gid < TotalSize) {  
-        //z_ik_den[gid] = p_i[idx]*p_ik[gid]/(sig[idx]*sig[idx]); 
-	//printf("GLOBAL : z_ik_den[%d] = %f ,idx  = %d , p_i[idx]  = %f ,	sig[idx] = %f \n",gid,z_ik_den[gid],idx,p_i[idx],sig[idx]);
-          auto x        = p_i[idx]*p_ik[gid]/(sig[idx]*sig[idx]); 
-	//printf("GLOBAL : z_ik_den[%d] = %f ,idx  = %d , p_i[idx]*p_ik[gid]/sig[idx]^2 = %f*%f/%f \n",gid,x,idx,p_i[idx],p_ik[gid],sig[idx]);
-    }
-
-}
-
-
 
 __device__ void  kernel_z_ik_DF(float * zk_numer,float * zk_denom,float * zDelta,float* zVtx,int ntraks,int currVtxCount )
 {
@@ -374,27 +249,6 @@ __device__ void  kernel_z_ik_DF(float * zk_numer,float * zk_denom,float * zDelta
 	}
 
 }
-
-__global__ void  kernel_z_ik_DF_DK(float * zk_numer,float * zk_denom,float * zDelta,float* zVtx,int ntraks,int currVtxCount )
-{
-	kernel_z_ik_DF( zk_numer, zk_denom, zDelta,zVtx,ntraks,currVtxCount );
-}
-
-__global__ void  kernel_z_ik(float * zk_numer,float * zk_denom,float * zDelta,float* zVtx,int ntraks,int currVtxCount )
-{
-	if(threadIdx.x < currVtxCount)
-	{
-	  auto newZ=zk_numer[threadIdx.x*ntraks]/(1e-20 + zk_denom[threadIdx.x*ntraks]);
-	  auto dz = abs(zVtx[threadIdx.x] - newZ);
-	  auto z   = newZ;
-	  //zDelta[threadIdx.x] = abs(zVtx[threadIdx.x] - newZ);
-	  //zVtx[threadIdx.x]   = newZ;
-	  printf("GLOBAL : setting Z[%d] = %f ,delta[%d] = %f ,numer = %f , deno = %f \n",\\
-			threadIdx.x,z,threadIdx.x,dz, zk_numer[threadIdx.x*ntraks],zk_denom[threadIdx.x]);
-	}
-}
-
-
 
 __device__ void kernel_tc_num_DF( float *T_num, float *z_i, float *zVtx, float *p,float *p_ik, float *sig, int Ntracks,int numberOfvertex)
 {
@@ -411,23 +265,6 @@ __device__ void kernel_tc_num_DF( float *T_num, float *z_i, float *zVtx, float *
 	     }
 	}
 }
-__global__ void kernel_tc_num_DF_DK( float *T_num, float *z_i, float *zVtx, float *p,float *p_ik, float *sig, int N,int currVtxCount )
-{
-
- kernel_tc_num_DF( T_num, z_i, zVtx, p,p_ik, sig, N, currVtxCount );
-}
-__global__ void kernel_tc_num( float *T_num, float *z_i, float *zVtx, float *p,float *p_ik, float *sig, int N,int currVtxCount )
-{
-	auto tid = threadIdx.x; 
-	auto idx = threadIdx.x; 
-	for(auto i=0;i<currVtxCount;i++)
-	{
-		idx+=N*i;
-       		//T_num[idx] = p[tid]*p_ik[idx]*((z_i[tid]-zVtx[i])*(z_i[tid]-zVtx[i]))/(sig[tid]*sig[tid]); 
-       		auto x = p[tid]*p_ik[idx]*((z_i[tid]-zVtx[i])*(z_i[tid]-zVtx[i]))/(sig[tid]*sig[tid]); 
- //	printf("GLOBAL : tid = %d, p[tid] =%f , z_i[tid] = %f ,zVtx[%d] =%f ,sig[tid] =%f , Tnum[%d] = %f \n",tid,p[tid],z_i[tid],i,zVtx[i],sig[tid],idx,x);
-	}
-}
 
 __device__ void  kernel_tc_k_DF(float * tc_numer,float * tc_denom,float* tc,int ntraks,int currVtxCount )
 {
@@ -438,22 +275,6 @@ __device__ void  kernel_tc_k_DF(float * tc_numer,float * tc_denom,float* tc,int 
 			threadIdx.x,tc[threadIdx.x], tc_numer[threadIdx.x*ntraks],tc_denom[threadIdx.x]);
 	}
 }
-__global__ void  kernel_tc_k_DF_DK(float * tc_numer,float * tc_denom,float* tc,int ntraks,int currVtxCount )
-{
-
- kernel_tc_k_DF( tc_numer, tc_denom, tc, ntraks, currVtxCount );
-
-}
-__global__ void  kernel_tc_k(float * tc_numer,float * tc_denom,float* tc,int ntraks,int currVtxCount )
-{
-	if(threadIdx.x < currVtxCount)
-	{
-	  auto x = 2.0*tc_numer[threadIdx.x*ntraks]/(1e-20 + tc_denom[threadIdx.x*ntraks]);
-	  // printf("GLOBAL setting tc[%d] = %f , numer = %f , deno = %f \n",\\
-			threadIdx.x,x, tc_numer[threadIdx.x*ntraks],tc_denom[threadIdx.x]);
-	}
-}
-
 __device__ void check_ifThermalized(float * deltas,float deltaTol ,int *hasThermalized,int currVtxCount)
 {
 	if(threadIdx.x<currVtxCount)
@@ -510,12 +331,6 @@ __global__ void kernel_z_k_spliting_DF_DK(float temp,float *z_k, float * tc_clus
 
 	/// =================================================//
 
-__global__ void calculateT0(Workspace * wrkspace)
-{
-	if(threadIdx.x==0)
-	printf("In the calculateT0 kernel \n");
-}
-
 // device functions might also be made inline , have to check if we will get any performance inprovements in this
 // The calculation of Z, the Eik calculation has  space complexity of numTracks*numVertices
 // In the original DA code they have arranged tracks in the acending Z and only the tracks which are close to a vertex goes into the ccalculation
@@ -531,53 +346,29 @@ __global__ void initializeDAvertexReco( Workspace *wrkspace  )
 	auto CurrentNvetex = 1;
 	auto numThreads=1024;
 	//      >>>>>>>>>KERNELs for ZVtx Update<<<<<<<<<  
-	//kernel_z_ik_num<<<CurrentNvetex, N>>>(wrkspace->pik, wrkspace->zk_numer, wrkspace->pi,wrkspace->zt,wrkspace->dz2, N, CurrentNvetex);
-	//cudaDeviceSynchronize();
-	//kernel_z_ik_num_DF_DK<<<1, numThreads>>>(wrkspace->pik, wrkspace->zk_numer, wrkspace->pi,wrkspace->zt,wrkspace->dz2, N, CurrentNvetex);
 	kernel_z_ik_num_DF(wrkspace->pik, wrkspace->zk_numer, wrkspace->pi,wrkspace->zt,wrkspace->dz2, N, CurrentNvetex);
-	//cudaDeviceSynchronize();
-	//kernel_z_ik_den<<<CurrentNvetex, N>>>(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
-	//cudaDeviceSynchronize();
-	//kernel_z_ik_den_DF_DK<<<1, numThreads>>>(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
 	kernel_z_ik_den_DF(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
-	//cudaDeviceSynchronize();
 	__syncthreads();
-	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_numer, wrkspace->zk_numer, N); 
-	//sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_numer, N,CurrentNvetex); 
+	
 	sumBlock_with_shfl_down_gid_DF(wrkspace->zk_numer, wrkspace->zk_numer, N,CurrentNvetex); 
-	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_denom, wrkspace->zk_denom, N);  	
-	//sumBlock_with_shfl_down_gid_DF_DK<<<1, numThreads>>>(wrkspace->zk_denom, wrkspace->zk_denom, N,CurrentNvetex);  	
 	sumBlock_with_shfl_down_gid_DF(wrkspace->zk_denom, wrkspace->zk_denom, N,CurrentNvetex);  	
-	//cudaDeviceSynchronize();
 	__syncthreads();
-	//kernel_z_ik<<<1,CurrentNvetex>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
-	//kernel_z_ik_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
+	
 	kernel_z_ik_DF(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
-
 	wrkspace->nVertex=1;
  	 	
 	//      >>>>>>>>>KERNEL for T finding <<<<<<<<<	
-	//kernel_tc_num<<<1, N>>>(wrkspace->tc_numer,wrkspace->zt,wrkspace->zVtx,wrkspace->pi,wrkspace->pik ,wrkspace->dz2,\\
-					N,CurrentNvetex);
-	//kernel_tc_num_DF_DK<<<1,numThreads>>>(wrkspace->tc_numer,wrkspace->zt,\\
-					wrkspace->zVtx,wrkspace->pi,wrkspace->pik ,wrkspace->dz2,\\
-					N,CurrentNvetex);
 
 	kernel_tc_num_DF(wrkspace->tc_numer,wrkspace->zt,wrkspace->zVtx,wrkspace->pi,wrkspace->pik ,wrkspace->dz2,\\
 					N,CurrentNvetex);
 	__syncthreads();
-	//cudaDeviceSynchronize();
-	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->tc_numer,wrkspace->tc_numer,N);
-	//sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->tc_numer,wrkspace->tc_numer,N, CurrentNvetex);
+	
 	sumBlock_with_shfl_down_gid_DF(wrkspace->tc_numer,wrkspace->tc_numer,N, CurrentNvetex);
-	// note that the denominator for Zk and Tc_k are same				
-	// cudaDeviceSynchronize();
 	__syncthreads();
-	//kernel_tc_k<<<1,CurrentNvetex>>>(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
-	//kernel_tc_k_DF_DK<<<1,numThreads>>>(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
+	
 	kernel_tc_k_DF(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
-	//cudaDeviceSynchronize();
 	__syncthreads();
+	
 	if(threadIdx.x==0)
 	{
 		wrkspace->beta=1.0/(1e-9 + (wrkspace->tc)[0] );
@@ -596,19 +387,13 @@ __device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 	auto CurrentNvetex=wrkspace->nVertex;
 	if(threadIdx.x==0)
 	printf("with N = %d , CurrentNvetex = %d \n",N,CurrentNvetex);
-	//kernel_p_ik_num<<<CurrentNvetex, N>>>(wrkspace->pik,wrkspace->zt ,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);   	 
-	//kernel_p_ik_num_DF_DK<<<1,numberOfThreads>>>(wrkspace->pik,wrkspace->zt ,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);   	 
-	//cudaDeviceSynchronize();
+	
 	kernel_p_ik_num_DF(wrkspace->pik,wrkspace->zt ,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);   	 
 	__syncthreads();
-	//sumBlock_with_loop <<<1,N>>> (wrkspace->pik,wrkspace->pik_denom,CurrentNvetex,N);
-	//sumBlock_with_loop_DF_DK<<<1,numberOfThreads>>>(wrkspace->pik,wrkspace->pik_denom,CurrentNvetex,N);
-	//cudaDeviceSynchronize();
+	
 	sumBlock_with_loop_DF(wrkspace->pik,wrkspace->pik_denom,CurrentNvetex,N);
 	__syncthreads();
-	//kernel_p_ik<<<CurrentNvetex, N>>>(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);   	
-	//kernel_p_ik_DF_DK<<<1,numberOfThreads>>>(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);   	
-	//cudaDeviceSynchronize();
+	
 	kernel_p_ik_DF(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);   	
 	__syncthreads();
 }
@@ -621,32 +406,16 @@ __device__ void updateVertexPositions(Workspace *wrkspace)
 	if(threadIdx.x==0)
 	printf("In the updateVertexPositions wit %d vertexes \n",wrkspace->nVertex);
 	//      >>>>>>>>>KERNELs for ZVtx Update<<<<<<<<<  
-	//kernel_z_ik_num<<<CurrentNvetex, N>>>(wrkspace->pik, wrkspace->zk_numer, wrkspace->pi,wrkspace->zt,wrkspace->dz2, N, CurrentNvetex);
-	//kernel_z_ik_num_DF_DK<<<1, numThreads>>>(wrkspace->pik, wrkspace->zk_numer, wrkspace->pi,wrkspace->zt,wrkspace->dz2, N, CurrentNvetex);
-	//cudaDeviceSynchronize();
+	
 	kernel_z_ik_num_DF(wrkspace->pik, wrkspace->zk_numer, wrkspace->pi,wrkspace->zt,wrkspace->dz2, N, CurrentNvetex);
-	
-	//kernel_z_ik_den<<<CurrentNvetex, N>>>(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
-	//kernel_z_ik_den_DF_DK<<<1, numThreads>>>(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
-	//cudaDeviceSynchronize();
 	kernel_z_ik_den_DF(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
-	
 	__syncthreads();
-	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_numer, wrkspace->zk_numer, N); 
-	//sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_numer, N,CurrentNvetex); 
-	//cudaDeviceSynchronize();
-	sumBlock_with_shfl_down_gid_DF(wrkspace->zk_numer, wrkspace->zk_numer, N,CurrentNvetex); 
 	
-	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_denom, wrkspace->zk_denom, N);  	
-	//sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->zk_denom, wrkspace->zk_denom, N,CurrentNvetex);  	
-	//cudaDeviceSynchronize();
+	sumBlock_with_shfl_down_gid_DF(wrkspace->zk_numer, wrkspace->zk_numer, N,CurrentNvetex); 
 	sumBlock_with_shfl_down_gid_DF(wrkspace->zk_denom, wrkspace->zk_denom, N,CurrentNvetex);  	
 	__syncthreads();
 	
-	//kernel_z_ik<<<1,CurrentNvetex>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
-	//kernel_z_ik_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
 	kernel_z_ik_DF(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
-
 }
 
 __device__ void updateVertexWeights()
@@ -664,27 +433,13 @@ __device__  void updateClusterCriticalTemperatures(Workspace *wrkspace)
 	printf("In the updateClusterCriticalTemperatures\n");
 
 	//      >>>>>>>>>KERNEL for T finding <<<<<<<<<	
-	//kernel_tc_num<<<1, N>>>(wrkspace->tc_numer,wrkspace->zt,\\
-					wrkspace->zVtx,wrkspace->pi, wrkspace->pik ,wrkspace->dz2,\\
-					N,CurrentNvetex);
-	//kernel_tc_num_DF_DK<<<1, numberOfThreads>>>(wrkspace->tc_numer,wrkspace->zt,\\
-					wrkspace->zVtx,wrkspace->pi, wrkspace->pik ,wrkspace->dz2,\\
-					N,CurrentNvetex);
-	
-	//cudaDeviceSynchronize();
 	kernel_tc_num_DF(wrkspace->tc_numer,wrkspace->zt,wrkspace->zVtx,wrkspace->pi, wrkspace->pik ,wrkspace->dz2,\\
 					N,CurrentNvetex);
 	__syncthreads();
-	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->tc_numer,wrkspace->tc_numer,N);
-	//sumBlock_with_shfl_down_gid_DF_DK<<<1,numberOfThreads>>>(wrkspace->tc_numer,wrkspace->tc_numer,N,CurrentNvetex);
-	//cudaDeviceSynchronize();
+	
 	sumBlock_with_shfl_down_gid_DF(wrkspace->tc_numer,wrkspace->tc_numer,N,CurrentNvetex);
 	__syncthreads();
 
-	// note that the denominator for Zk and Tc_k are same				
-	// kernel_tc_k<<<1,CurrentNvetex>>>(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
-	// kernel_tc_k_DF_DK<<<1,numberOfThreads>>>(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
-	//cudaDeviceSynchronize();
 	kernel_tc_k_DF(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
 
 }
@@ -695,10 +450,10 @@ __device__ void checkAndSplitClusters(Workspace *wrkspace)
 	printf("In the checkAndSplitClusters\n");
 	auto CurrentNvetex = wrkspace->nVertex;
 	auto numberOfThreads=1024;
-	//kernel_z_k_spliting<<<1,CurrentNvetex>>>(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->tc,&(wrkspace->nVertex) );
-	//kernel_z_k_spliting_DF_DK<<<1,numberOfThreads>>>(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->tc,&(wrkspace->nVertex) );
+	
 	kernel_z_k_spliting_DF(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->tc,&(wrkspace->nVertex) );
-	cudaDeviceSynchronize();
+	__syncthreads();
+	
 	if(threadIdx.x==0)
 	printf("Number of vertices after checkAndSplitClusters = %d \n",wrkspace->nVertex);
 
@@ -737,26 +492,23 @@ __global__ void dynamicSplittingPhase(Workspace * wrkspace)
 		for(int j=0;j<20;j++)
 		{
 
-			//updateTrackToVertexProbablilities<<<1,numberOfThreads>>>(wrkspace);
-		        //cudaDeviceSynchronize(); 
 			updateTrackToVertexProbablilities(wrkspace);
 			__syncthreads();
 			
-			//updateVertexPositions<<<1,numberOfThreads>>>(wrkspace);
-                        // cudaDeviceSynchronize(); 
 			updateVertexPositions(wrkspace);
 			__syncthreads();
 	
-			if(threadIdx.x ==0 )	{	
-			printf("\n\nAt i = %d , j =%d , beta =%f \n",i,j,wrkspace->beta);
-			kernel_findFreeEnergyPartA<<<CurrentNvetex,N>>>(wrkspace->FEnergyA,\\
+	//****** === Free Energy Monitoring   === ****************///
+			if(threadIdx.x ==0 )	
+			{	
+			  printf("\n\nAt i = %d , j =%d , beta =%f \n",i,j,wrkspace->beta);
+			  kernel_findFreeEnergyPartA<<<CurrentNvetex,N>>>(wrkspace->FEnergyA,\\
 						  wrkspace->zt,wrkspace->zVtx,\\
 						   wrkspace->dz2, wrkspace->beta,CurrentNvetex,N);
-			kernel_findFreeEnergyPartB<<<1,1>>>(wrkspace->FEnergyA,wrkspace->beta,CurrentNvetex,N);
+			  kernel_findFreeEnergyPartB<<<1,1>>>(wrkspace->FEnergyA,wrkspace->beta,CurrentNvetex,N);
 			}	
-			//check_ifThermalized<<<1,1>>>(wrkspace->zk_delta,0.001,wrkspace->hasThermalized,CurrentNvetex);
-			cudaDeviceSynchronize();
 			__syncthreads();
+	//****** ===                          === ****************///
 			
 			check_ifThermalized(wrkspace->zk_delta,0.001,wrkspace->hasThermalized,CurrentNvetex);
 			__syncthreads();
@@ -770,13 +522,11 @@ __global__ void dynamicSplittingPhase(Workspace * wrkspace)
 			if(threadIdx.x==0)
 			*(wrkspace->hasThermalized)=0;
 		}
-		//updateVertexWeights(wrkspace);
 		__syncthreads();
 	
-	        //updateClusterCriticalTemperatures<<<1, numberOfThreads>>>(wrkspace);
-		//cudaDeviceSynchronize();
 	        updateClusterCriticalTemperatures(wrkspace);
 		__syncthreads();
+		
 		checkAndSplitClusters(wrkspace);
 		__syncthreads();
 		
@@ -802,14 +552,15 @@ __global__ void vertexAssignmentPhase(Workspace * wrkspace)
 	auto numberOfThreads=1024;
 	while( i<2  /*workspace.beta < workspace.betaMax*/ )
 	{
-//		updateTrackToVertexProbablilities<<<1,numberOfThreads>>>(wrkspace);
 		updateTrackToVertexProbablilities(wrkspace);
 		__syncthreads();
-		//updateVertexPositions<<<1,numberOfThreads>>>(wrkspace);
+		
 		updateVertexPositions(wrkspace);
 		__syncthreads();
+		
 		updateVertexWeights();
 		__syncthreads();
+		
 		//checkAndMergeClusters();
 		__syncthreads();
 		
@@ -844,7 +595,6 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
 	 
 	 
 	 initializeWorspace<<<256,1024>>>(wrkspace);
-	 //initializeDAvertexReco<<<1,1>>>(wrkspace);
 
 	 numberOfThreads = 1024;
 	 initializeDAvertexReco<<<1,numberOfThreads>>>(wrkspace);
@@ -852,13 +602,13 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
 	 printf("\n");
 	
 
-	 dynamicSplittingPhase<<<1,1024>>>(wrkspace);
+	 dynamicSplittingPhase<<<1,numberOfThreads>>>(wrkspace);
 	 cudaDeviceSynchronize(); 
 	 printf("\n");
 	 
 	 return nullptr;
 	 
-	 vertexAssignmentPhase<<<1,1024>>>(wrkspace);
+	 vertexAssignmentPhase<<<1,numberOfThreads>>>(wrkspace);
 	 printf("\n");
 	 
 	 //printf(cudaGetErrorName(cudaGetLastError()));
