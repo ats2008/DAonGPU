@@ -41,7 +41,8 @@ __global__ void initializeWorspace(Workspace * wrkspace)
 	if(idx==0)
 	{
 		wrkspace->nVertex=0;
-		wrkspace->betaFactor=2.5;
+		wrkspace->betaFactor=1.5;
+		wrkspace->betaSplitMax=0.24;
 	}
 
 }
@@ -466,7 +467,7 @@ __device__ void check_ifThermalized(float * deltas,float deltaTol ,int *hasTherm
 }
 
 // probably pass on the z2 avg and spit approximating the xluster to be 2 gaussians
-__device__ void kernel_z_k_spliting(float temp,float *z_k, float * tc_clusters ,uint32_t *cur_NV) 
+__device__ void kernel_z_k_spliting_DF(float temp,float *z_k, float * tc_clusters ,uint32_t *cur_NV) 
 {
 /*  
    This kernel take the vertex list and split the last vertex into z-delta,z+delta (delta between 0 and 1.0)
@@ -502,7 +503,7 @@ __device__ void kernel_z_k_spliting(float temp,float *z_k, float * tc_clusters ,
 __global__ void kernel_z_k_spliting_DF_DK(float temp,float *z_k, float * tc_clusters ,uint32_t *cur_NV) 
 {
 
-   kernel_z_k_spliting(temp,z_k, tc_clusters ,cur_NV) ;
+   kernel_z_k_spliting_DF(temp,z_k, tc_clusters ,cur_NV) ;
 }
 
 
@@ -579,12 +580,12 @@ __global__ void initializeDAvertexReco( Workspace *wrkspace  )
 	if(threadIdx.x==0)
 	{
 		wrkspace->beta=1.0/(1e-9 + (wrkspace->tc)[0] );
-		printf(" workspace beta set to %f ( 1.0/%f  , %f) \n",wrkspace->beta,wrkspace->tc[0],(wrkspace->tc)[0]);
+		printf(" workspace beta set to %f ( 1.0/%f  ) bets split max : %f \n",wrkspace->beta,wrkspace->tc[0],wrkspace->betaSplitMax);
 	}
 
 }
 
-__global__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
+__device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 {
 	if(threadIdx.x==0)
 	printf("In the updateTrackToVertexProbablilities\n");
@@ -611,7 +612,7 @@ __global__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 	__syncthreads();
 }
 
-__global__ void updateVertexPositions(Workspace *wrkspace)
+__device__ void updateVertexPositions(Workspace *wrkspace)
 {	
 	auto N=wrkspace->nTracks;
 	auto CurrentNvetex=wrkspace->nVertex;
@@ -653,7 +654,7 @@ __device__ void updateVertexWeights()
 	printf("In the updateVertexWeights\n");
 }
 
-__global__  void updateClusterCriticalTemperatures(Workspace *wrkspace)
+__device__  void updateClusterCriticalTemperatures(Workspace *wrkspace)
 {
 	auto N=wrkspace->nTracks;
 	auto CurrentNvetex=wrkspace->nVertex;
@@ -694,9 +695,11 @@ __device__ void checkAndSplitClusters(Workspace *wrkspace)
 	auto CurrentNvetex = wrkspace->nVertex;
 	auto numberOfThreads=1024;
 	//kernel_z_k_spliting<<<1,CurrentNvetex>>>(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->tc,&(wrkspace->nVertex) );
-	kernel_z_k_spliting_DF_DK<<<1,numberOfThreads>>>(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->tc,&(wrkspace->nVertex) );
+	//kernel_z_k_spliting_DF_DK<<<1,numberOfThreads>>>(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->tc,&(wrkspace->nVertex) );
+	kernel_z_k_spliting_DF(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->tc,&(wrkspace->nVertex) );
 	cudaDeviceSynchronize();
-	printf("Numver of vertices after checkAndSplitClusters = %d \n",wrkspace->nVertex);
+	if(threadIdx.x==0)
+	printf("Number of vertices after checkAndSplitClusters = %d \n",wrkspace->nVertex);
 
 }
 
@@ -713,7 +716,8 @@ __global__ void dynamicSplittingPhase(Workspace * wrkspace)
 	int i=0;
 	auto numberOfThreads=1024;
 
-	while(i<5 /*workspace.beta < workspace.betaSplitMax */)
+	//while(i<5 /*workspace.beta < workspace.betaSplitMax */)
+	while(workspace.beta < workspace.betaSplitMax)
 	{
    // this could be avoided if we could store a sequnce of betas in the worspace precomputed
 		if(threadIdx.x==0)
@@ -725,54 +729,63 @@ __global__ void dynamicSplittingPhase(Workspace * wrkspace)
 		 else i++;
 
 		__syncthreads();
+		
 		auto N=wrkspace->nTracks;
 		auto CurrentNvetex=wrkspace->nVertex;
 		
 		for(int j=0;j<20;j++)
 		{
 
-			updateTrackToVertexProbablilities<<<1,numberOfThreads>>>(wrkspace);
-	//	        cudaDeviceSynchronize(); 
-	//		__syncthreads();
+			//updateTrackToVertexProbablilities<<<1,numberOfThreads>>>(wrkspace);
+		        //cudaDeviceSynchronize(); 
+			updateTrackToVertexProbablilities(wrkspace);
+			__syncthreads();
 			
-			updateVertexPositions<<<1,numberOfThreads>>>(wrkspace);
-		        cudaDeviceSynchronize(); 
+			//updateVertexPositions<<<1,numberOfThreads>>>(wrkspace);
+                        // cudaDeviceSynchronize(); 
+			updateVertexPositions(wrkspace);
 			__syncthreads();
 	
-			
+			if(threadIdx.x ==0 )	{	
 			printf("\n\nAt i = %d , j =%d , beta =%f \n",i,j,wrkspace->beta);
 			kernel_findFreeEnergyPartA<<<CurrentNvetex,N>>>(wrkspace->FEnergyA,\\
 						  wrkspace->zt,wrkspace->zVtx,\\
 						   wrkspace->dz2, wrkspace->beta,CurrentNvetex,N);
 			kernel_findFreeEnergyPartB<<<1,1>>>(wrkspace->FEnergyA,wrkspace->beta,CurrentNvetex,N);
-
+			}	
 			//check_ifThermalized<<<1,1>>>(wrkspace->zk_delta,0.001,wrkspace->hasThermalized,CurrentNvetex);
-			check_ifThermalized(wrkspace->zk_delta,0.001,wrkspace->hasThermalized,CurrentNvetex);
-			
 			cudaDeviceSynchronize();
-
+			__syncthreads();
+			
+			check_ifThermalized(wrkspace->zk_delta,0.001,wrkspace->hasThermalized,CurrentNvetex);
+			__syncthreads();
 			if(*(wrkspace->hasThermalized)==0)
 			{
-		printf("has thermalized for beta = %f , j =%d\n",wrkspace->beta,j);
+				if(threadIdx.x==0)
+					printf("has thermalized for beta = %f , j =%d\n",wrkspace->beta,j);
 				break;
 			}
-
+			__syncthreads();
+			if(threadIdx.x==0)
 			*(wrkspace->hasThermalized)=0;
 		}
 		//updateVertexWeights(wrkspace);
-		//__syncthreads();
+		__syncthreads();
 	
-	        updateClusterCriticalTemperatures<<<1, numberOfThreads>>>(wrkspace);
-		cudaDeviceSynchronize();
+	        //updateClusterCriticalTemperatures<<<1, numberOfThreads>>>(wrkspace);
+		//cudaDeviceSynchronize();
+	        updateClusterCriticalTemperatures(wrkspace);
 		__syncthreads();
 		checkAndSplitClusters(wrkspace);
-		cudaDeviceSynchronize();
+		__syncthreads();
 		
+		if(threadIdx.x==0)
 		for(int ii=0;ii<wrkspace->nVertex;ii++)
 		   printf("vertex [%d] = %f \n",ii,wrkspace->zVtx[ii]);
 		}
 
 	//checkAndMergeClusters();
+	if(threadIdx.x==0)
 	for(int ii=0;ii<wrkspace->nVertex;ii++)
 		   printf("*vertex [%d], %f \n",ii,wrkspace->zVtx[ii]);
 	return ;
@@ -788,9 +801,11 @@ __global__ void vertexAssignmentPhase(Workspace * wrkspace)
 	auto numberOfThreads=1024;
 	while( i<2  /*workspace.beta < workspace.betaMax*/ )
 	{
-		updateTrackToVertexProbablilities<<<1,numberOfThreads>>>(wrkspace);
+//		updateTrackToVertexProbablilities<<<1,numberOfThreads>>>(wrkspace);
+		updateTrackToVertexProbablilities(wrkspace);
 		__syncthreads();
-		updateVertexPositions<<<1,numberOfThreads>>>(wrkspace);
+		//updateVertexPositions<<<1,numberOfThreads>>>(wrkspace);
+		updateVertexPositions(wrkspace);
 		__syncthreads();
 		updateVertexWeights();
 		__syncthreads();
@@ -836,7 +851,7 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
 	 printf("\n");
 	
 
-	 dynamicSplittingPhase<<<1,1>>>(wrkspace);
+	 dynamicSplittingPhase<<<1,1024>>>(wrkspace);
 	 cudaDeviceSynchronize(); 
 	 printf("\n");
 	 
