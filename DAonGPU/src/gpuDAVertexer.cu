@@ -74,51 +74,73 @@ __global__ void loadTracks(ZTrackSoA * tracks,Workspace * wrkspace)
 }
 
 	/// ==================================================//
+__device__ void sumBlock_with_shfl_down_gid_DF(float *in, float *out, int Ntracks,int Nvertices)
+{ 
 
+	if(threadIdx.x<Nvertices)
+	{
+		int vtxId=threadIdx.x*Ntracks;
+		int gid = blockIdx.x * blockDim.x + threadIdx.x; 
+		for (int offset =1 ; offset <Ntracks; offset ++) // (blockSize/2)+1 
+		{        	 
+	  		out[vtxId] += in[vtxId+offset] ;     
+		}
+	}
+
+ 
+}
+__global__ void sumBlock_with_shfl_down_gid_DF_DK(float *in, float *out, int Ntracks,int Nvertices)
+{
+
+sumBlock_with_shfl_down_gid_DF(in,out,  Ntracks,Nvertices);
+
+}
 __global__ void sumBlock_with_shfl_down_gid(float *in, float *out, int blockSize)
 { 
 
-int gid = blockIdx.x * blockDim.x + threadIdx.x; 
-	//int tid = threadIdx.x; 
-	//int bid = blockIdx.x ;
-	//int aux = __float2uint_ru(float(blockSize)/2) ;
-	//  !!!!!!  Warning Warp Divergence !!!!!! 
-	//out[gid] = in[gid];
-	//printf(" gid %d in[gid]=%f, out[gid]=%f  \n",gid, in[gid], out[gid]);
-	//printf(" blockSize %d ",blockSize);	
-	//printf(" gid %d ",gid);
-	//printf(" tid %d ",tid);
- 
-	//for (int offset =  __float2uint_ru(float(blockSize)/2)  ; offset > 0; --offset ) // (blockSize/2)+1  
-	//lst for (int offset =  __float2uint_ru(float(blockSize)/2)  ; offset > 0; offset /= 2) // (blockSize/2)+1 
+	int gid = blockIdx.x * blockDim.x + threadIdx.x; 
 	for (int offset =  __float2uint_ru(float(blockSize)/2)  ; offset > 0; offset /= 2) // (blockSize/2)+1 
-	// do not work for (int offset =  1.0*blockSize/2  ; offset > 0; offset /= 2) // (blockSize/2)+1 
-	
-	// To round up A[idx] = __float2uint_rz( tmp1 ) ;
 	{        	 
-	  //printf(" offset %d ",offset);
-	  //aux = __float2uint_ru(float(offset)/2)  ; 
 	  out[gid] +=  __shfl_down_sync(0xffffffff, out[gid], offset);     
-	  //printf(" off %d tid %d  bid %d gid %d  out[tid] %f out[gid] %f \n",offset, tid, bid, gid, out[tid] , out[gid]);  
-	  //printf(" aux %d  \n",aux );  
-	    
 	}
 
  
 }
 
-__global__ void sumBlock_with_loop(float *in, float *out,int numVertices, int N)
+__device__ void sumBlock_with_loop_DF(float *in, float *out,int numVertices, int Ntracks)
 { 
 	int tid = threadIdx.x; 
+	if(tid<Ntracks)
+	{
+		int off ;
+		out[tid]=0.0;	
+		for (int offset = 0 ; offset<numVertices; offset++ )  
+		{        	  
+		  off = Ntracks*offset ;
+                  out[tid] += in[tid+off];     
+		}
+	}
+//	printf("out[%d] = %f \n",tid,out[tid]);
+}
+__global__ void sumBlock_with_loop_DF_DK(float *in, float *out,int numVertices, int Ntracks)
+{
+    sumBlock_with_loop_DF(in,out,numVertices,Ntracks);
+}
+__global__ void sumBlock_with_loop(float *in, float *out,int numVertices, int Ntrks)
+{ 
+	int tid = threadIdx.x; 
+
 	int off ;
 	out[tid]=0.0;	
 	for (int offset = 0 ; offset<numVertices; offset++ )  
 	{        	  
-	  off = N*offset ;
+	  off = Ntrks*offset ;
 	  out[tid] += in[tid+off];     
 	}
 //	printf("out[%d] = %f \n",tid,out[tid]);
 }
+
+
 __global__ void kernel_findFreeEnergyPartA(float *FEnergyA,float * zi, float *zVtx,float* sig,float beta ,int CurrentVtx,int N )
 {
     int idx = threadIdx.x; 
@@ -514,8 +536,10 @@ __global__ void initializeDAvertexReco( Workspace *wrkspace  )
 	cudaDeviceSynchronize();
 	kernel_z_ik_den_DF_DK<<<1, numThreads>>>(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
 	cudaDeviceSynchronize();
-	sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_numer, wrkspace->zk_numer, N); 
-	sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_denom, wrkspace->zk_denom, N);  	
+	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_numer, wrkspace->zk_numer, N); 
+	sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_numer, N,CurrentNvetex); 
+	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_denom, wrkspace->zk_denom, N);  	
+	sumBlock_with_shfl_down_gid_DF_DK<<<1, numThreads>>>(wrkspace->zk_denom, wrkspace->zk_denom, N,CurrentNvetex);  	
 	cudaDeviceSynchronize();
 	kernel_z_ik<<<1,CurrentNvetex>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
 	kernel_z_ik_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
@@ -531,7 +555,8 @@ __global__ void initializeDAvertexReco( Workspace *wrkspace  )
 					N,CurrentNvetex);
 
 	cudaDeviceSynchronize();
-	sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->tc_numer,wrkspace->tc_numer,N);
+	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->tc_numer,wrkspace->tc_numer,N);
+	sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->tc_numer,wrkspace->tc_numer,N, CurrentNvetex);
 	// note that the denominator for Zk and Tc_k are same				
 	cudaDeviceSynchronize();
 	kernel_tc_k<<<1,CurrentNvetex>>>(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
@@ -550,6 +575,7 @@ __device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 //      >>>>>>>>> KERNELs for  kernel_p_ik <<<<<<<<<
 	auto N=wrkspace->nTracks;
 	auto CurrentNvetex=wrkspace->nVertex;
+	auto numberOfThreads =1024;
 	printf("with N = %d , CurrentNvetex = %d \n",N,CurrentNvetex);
 	
 	kernel_p_ik_num<<<CurrentNvetex, N>>>(wrkspace->pik,wrkspace->zt ,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);   	 
@@ -559,8 +585,10 @@ __device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 	auto stride_max=( int((numThreads-1)/N) + 1 );
 	kernel_p_ik_num_DEVICEFUNC_DUMMY_KERNEL<<<1,numThreads>>>(wrkspace->pik,wrkspace->zt ,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex, stride_max);   	 
 	
-	sumBlock_with_loop <<<1,N>>> (wrkspace->pik,wrkspace->pik_denom,\\
-					CurrentNvetex,N);
+	//sumBlock_with_loop <<<1,N>>> (wrkspace->pik,wrkspace->pik_denom,CurrentNvetex,N);
+	sumBlock_with_loop_DF_DK<<<1,numberOfThreads>>>(wrkspace->pik,wrkspace->pik_denom,CurrentNvetex,N);
+	cudaDeviceSynchronize();
+	__syncthreads();
 	kernel_p_ik<<<CurrentNvetex, N>>>(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);   	
 	kernel_p_ik_DEVICEFUNC_DUMMY_KERNEL<<<1,numThreads>>>(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);   	
 	cudaDeviceSynchronize();
@@ -583,9 +611,11 @@ __device__ void updateVertexPositions(Workspace *wrkspace)
 	cudaDeviceSynchronize();
 	kernel_z_ik_den_DF_DK<<<1, numThreads>>>(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex); 
 	cudaDeviceSynchronize();
-	sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_numer, wrkspace->zk_numer, N); 
+	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_numer, wrkspace->zk_numer, N); 
+	sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_numer, N,CurrentNvetex); 
 	cudaDeviceSynchronize();
-	sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_denom, wrkspace->zk_denom, N);  	
+	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->zk_denom, wrkspace->zk_denom, N);  	
+	sumBlock_with_shfl_down_gid_DF_DK<<<1,numThreads>>>(wrkspace->zk_denom, wrkspace->zk_denom, N,CurrentNvetex);  	
 	cudaDeviceSynchronize();
 	kernel_z_ik<<<1,CurrentNvetex>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
 	kernel_z_ik_DF_DK<<<1,numThreads>>>(wrkspace->zk_numer, wrkspace->zk_denom,wrkspace->zk_delta ,wrkspace->zVtx, N, CurrentNvetex);  
@@ -617,7 +647,8 @@ __device__  void updateClusterCriticalTemperatures(Workspace *wrkspace)
 					N,CurrentNvetex);
 	
 	cudaDeviceSynchronize();
-	sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->tc_numer,wrkspace->tc_numer,N);
+	//sumBlock_with_shfl_down_gid<<<CurrentNvetex, N>>>(wrkspace->tc_numer,wrkspace->tc_numer,N);
+	sumBlock_with_shfl_down_gid_DF_DK<<<1,numberOfThreads>>>(wrkspace->tc_numer,wrkspace->tc_numer,N,CurrentNvetex);
 	// note that the denominator for Zk and Tc_k are same				
 	cudaDeviceSynchronize();
 	kernel_tc_k<<<1,CurrentNvetex>>>(wrkspace->tc_numer,wrkspace->zk_denom,wrkspace->tc,N,CurrentNvetex);
