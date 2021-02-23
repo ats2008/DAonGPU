@@ -1,8 +1,8 @@
 #include "stdint.h"
 
 struct ZVertexSoA {
-  static constexpr uint32_t MAXTRACKS = 1024;
-  static constexpr uint32_t MAXVTX = 128;
+  static constexpr uint32_t MAXTRACKS = 1024*10;
+  static constexpr uint32_t MAXVTX = 512*1;
 
   int16_t idv[MAXTRACKS];    // vertex index for each associated (original) track  (-1 == not associate)
   float zv[MAXVTX];          // output z-posistion of found vertices

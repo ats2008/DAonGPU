@@ -583,7 +583,8 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
  
 	 Workspace *wrkspace;
 	 cudaMalloc(&wrkspace,sizeof(Workspace));
-	
+	 printf("Allocating %f  KBs on Device for Workspace\n ",sizeof(Workspace)/1e3);
+
 	 //demoKernel<<<2,10>>>(tracks,n);
 	 //udaDeviceSynchronize(); 
 	 

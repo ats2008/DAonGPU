@@ -13,6 +13,8 @@ ZTrackSoA * loadTracksToGPU(std::string csv_fname,int nevts , int evtStart, int 
 	if(evtEnd-evtStart > nevts) evtEnd=evtStart+nevts;
 
 	ZTrackSoA* trackList = new ZTrackSoA[nevts]; 
+	std::cout<<"Allocating "<<sizeof(ZTrackSoA)*nevts/1e3<<" KBs on Host for track collection sizeof(ZTrackSoA) : "
+					<<sizeof(ZTrackSoA)<<" nevts = "<<nevts<<"\n";
 
 	fstream csvfile(csv_fname.c_str(),ios::in);
 	if(!csvfile)
@@ -74,6 +76,8 @@ ZTrackSoA * loadTracksToGPU(std::string csv_fname,int nevts , int evtStart, int 
 	
 	ZTrackSoA * tracksOnGPU;
 	cudaMalloc(&tracksOnGPU,sizeof(ZTrackSoA)*nevts);
+	std::cout<<"Allocating "<<sizeof(ZTrackSoA)*nevts/1e3<<" KBs on Device for track collection sizeof(ZTrackSoA) : "
+					<<sizeof(ZTrackSoA)<<" nevts = "<<nevts<<"\n";
 	cudaMemcpy(tracksOnGPU,trackList,sizeof(ZTrackSoA)*nevts,cudaMemcpyHostToDevice);
 	cudaDeviceSynchronize();
 	std::cout<<"\n Loaded tracks from "<<nevts<<" events to GPU memory sucessfully \n";
