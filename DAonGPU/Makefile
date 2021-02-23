@@ -7,7 +7,8 @@ NVCC 		= nvcc
 
 LIBS		= -lm
 CXXFLAGS 	= -std=c++11 -I$(INCPATH) -g -rdynamic 
-NVCCFLAGS	=  -rdc=true -std=c++11 -I$(INCPATH) -g  --generate-line-info -Xcompiler -rdynamic 
+# Add -Xptxas -v to NVCCFLAGS for doing compiletime register analysis
+NVCCFLAGS	=  -rdc=true -std=c++11 -I$(INCPATH) -g  --generate-line-info -Xcompiler -rdynamic  
 NVCCLIBS	= -lcudart 
 
 TARGET		= main.exe
@@ -30,5 +31,9 @@ $(OBJ)/%cu.o : $(SRC)/%.cu
 
 
 clean :
-	@rm obj/*.o
+	@rm src/*.orig
 	@rm *.exe
+	@rm obj/*.o
+cclean :
+	@rm src/*.orig
+
