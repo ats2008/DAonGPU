@@ -8,7 +8,7 @@ int main()
 {
 
     ZTrackSoA * tracksInGPU;
-    const int NEVENTS=1;
+    const int NEVENTS=40;
 
     // ZTrackSoA* loadTracksToGPU(std::string csv_fname, int nvts=20,int evtStart=0,int evtEnd=20 );
     tracksInGPU=loadTracksToGPU("tracks.csv",NEVENTS);
