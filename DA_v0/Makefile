@@ -6,14 +6,13 @@ CXX 		= g++
 NVCC 		= nvcc
 
 LIBS		= -lm
-CXXFLAGS 	= -std=c++11 -I$(INCPATH) -g -rdynamic 
-# Add -Xptxas -v to NVCCFLAGS for doing compiletime register analysis
-NVCCFLAGS	=  -rdc=true -std=c++11 -I$(INCPATH) -g  --generate-line-info -Xcompiler -rdynamic  
-NVCCLIBS	= -lcudart 
+CXXFLAGS 	= -std=c++14 -I$(INCPATH) 
+NVCCFLAGS	= -std=c++14 -I$(INCPATH)
+NVCCLIBS	= -lcudart
 
-TARGET		= main.exe
-DEPS		= main gpuDAVertexer
-CUDEPS		= main gpuDAVertexer
+TARGET		= da.exe
+DEPS		= 
+CUDEPS		= sketch_DA_v7
 
 OBJ_  := $(DEPS:%=$(OBJ)/%.o)
 OBJCU_  := $(CUDEPS:%=$(OBJ)/%cu.o)
@@ -31,9 +30,5 @@ $(OBJ)/%cu.o : $(SRC)/%.cu
 
 
 clean :
-	@rm src/*.orig
-	@rm *.exe
 	@rm obj/*.o
-cclean :
-	@rm src/*.orig
-
+	@rm *.exe

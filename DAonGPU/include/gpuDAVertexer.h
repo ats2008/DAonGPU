@@ -12,12 +12,34 @@ namespace gpuDAVertexer{
     struct Workspace{
 
  // Track Parameters 
-    uint32_t ntrks;
+    uint32_t nTracks;
+    uint32_t nVertex  ;
+
     uint16_t itrk[MAXTRACKS];
     float zt[MAXTRACKS];
     float dz2[MAXTRACKS];
     float pi[MAXTRACKS];
 
+//  DA workspace variables
+    float FEnergyA [MAXTRACKS*MAXVTX];
+    
+    float pik      [MAXTRACKS*MAXVTX];
+    float pik_numer[MAXTRACKS*MAXVTX];
+    float pik_denom[MAXTRACKS*MAXVTX];
+ 
+    float zk_delta  	    [MAXVTX];
+    float zk_numer[MAXTRACKS*MAXVTX];
+    float zk_denom[MAXTRACKS*MAXVTX];
+	
+    float tc                [MAXVTX];	
+    float tc_numer[MAXTRACKS*MAXVTX];
+    float tc_denom[MAXTRACKS*MAXVTX];
+    
+  //  float rho     [MAXTRACKS*MAXVTX];
+  //  float rho_denom[MAXTRACKS*MAXVTX];
+  //  float rho_denom[MAXTRACKS*MAXVTX];
+
+    int   hasThermalized[1];
 // Vertex Parameters
     float zVtx[MAXVTX];
 
@@ -30,7 +52,6 @@ namespace gpuDAVertexer{
     float maxDZforMerge;
 
     float Eik[200]; // TODO :  size needs to be fixed, based on the algo.
-    float rho[200];
     
     // and many more to be added as developemnt prgresses
     
