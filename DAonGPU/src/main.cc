@@ -8,7 +8,7 @@ int main()
 {
 
     ZTrackSoA * tracksInGPU;
-    const int NEVENTS=40;
+    const int NEVENTS=2000;
 
     // ZTrackSoA* loadTracksToGPU(std::string csv_fname, int nvts=20,int evtStart=0,int evtEnd=20 );
     tracksInGPU=loadTracksToGPU("tracks.csv",NEVENTS);
@@ -16,7 +16,8 @@ int main()
     if(tracksInGPU == nullptr)
         return 1;
 
-    gpuDAVertexer::DAVertexer demoVertexer(5.5);
+    gpuDAVertexer::DAVertexer demoVertexer(5.5); 
+    demoVertexer.allocateGPUworkspace();
 
     for(int i=0; i<NEVENTS; i++)
     {

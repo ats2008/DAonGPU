@@ -35,9 +35,9 @@ namespace gpuDAVertexer{
     float tc_numer[MAXTRACKS*MAXVTX];
     float tc_denom[MAXTRACKS*MAXVTX];
     
-  //  float rho     [MAXTRACKS*MAXVTX];
-  //  float rho_denom[MAXTRACKS*MAXVTX];
-  //  float rho_denom[MAXTRACKS*MAXVTX];
+    float rhok               [MAXVTX];
+    float rhok_numer[MAXTRACKS*MAXVTX];
+    float rho_denom                  ;
 
     int   hasThermalized[1];
 // Vertex Parameters
@@ -62,11 +62,12 @@ namespace gpuDAVertexer{
     public:
         
 	DAVertexer( float tmin=0.5); 
-        
+        void allocateGPUworkspace();     
 	ZVertexSoA* makeAsync(ZTrackSoA * track,int n=20);
     
     private:
-
+        Workspace *wrkspace;
+   
     // Dummy list of parameters for DA
 	float Tmin;
 	float Tpurge;

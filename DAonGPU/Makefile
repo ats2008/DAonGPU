@@ -31,9 +31,7 @@ $(OBJ)/%cu.o : $(SRC)/%.cu
 
 
 clean :
-	@rm src/*.orig
-	@rm *.exe
-	@rm obj/*.o
+	@rm *.exe  obj/*.o
 cclean :
 	@rm src/*.orig
 
