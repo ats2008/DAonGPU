@@ -44,8 +44,9 @@ __global__ void initializeWorspace(Workspace * wrkspace)
     if(idx==0)
     {
         wrkspace->nVertex=0;
-        wrkspace->betaFactor=1.5;
+        wrkspace->betaFactor=1.667;
         wrkspace->betaSplitMax=0.24;
+        wrkspace->betaMax=2;
     	wrkspace->rho_denom=1.0;
     }
 
@@ -626,8 +627,8 @@ __global__ void vertexAssignmentPhase(Workspace * wrkspace)
     // this may require some restructuring
     // there is a possibility of this to paralized with each block taking up thermalization of an individual vertex and moving the checkAndMergeClusters() to another __global__ kernel
     int i=0;
-    while( i<2  /*workspace.beta < workspace.betaMax*/ )
-    //while( workspace.beta < workspace.betaMax )
+ //   while( i<2  /*workspace.beta < workspace.betaMax*/ )
+    while( workspace.beta < workspace.betaMax )
     {
         updateTrackToVertexProbablilities(wrkspace);
         __syncthreads();
