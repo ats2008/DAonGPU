@@ -13,12 +13,17 @@ def generateTrkVtxData(NEVENTS=10,genDict={}):
     else:
         genDict['PU_DISTRIBUTION_MEAN']    =  20
 
-    if 'VERTEX_Z_DISTRIBUTIO' in genDict:
+    if 'VERTEX_Z_DISTRIBUTION_SIGMA' in genDict:
         genDict['VERTEX_Z_DISTRIBUTION_SIGMA']     =  genDict['VERTEX_Z_DISTRIBUTION_SIGMA']
     else:
         genDict['VERTEX_Z_DISTRIBUTION_SIGMA']     =  50
+    
+    if 'VERTEX_Z_DISTRIBUTION_WIDTH' in genDict:
+        genDict['VERTEX_Z_DISTRIBUTION_WIDTH']     =  genDict['VERTEX_Z_DISTRIBUTION_WIDTH']
+    else:
+        genDict['VERTEX_Z_DISTRIBUTION_WIDTH']     =  20
                 
-    if 'VERTEX_Z_DISTRIBUTIO' in genDict:
+    if 'VERTEX_Z_DISTRIBUTION_MEAN' in genDict:
         genDict['VERTEX_Z_DISTRIBUTION_MEAN']      =  genDict['VERTEX_Z_DISTRIBUTION_MEAN']
     else:
         genDict['VERTEX_Z_DISTRIBUTION_MEAN']      =  0
@@ -43,17 +48,30 @@ def generateTrkVtxData(NEVENTS=10,genDict={}):
     else:
         genDict['TRACKS_PER_VTX_MEAN']             =  60
     
+    if 'VERTEX_Z_DISTRUBUTION_TYPE' in genDict:
+        genDict['VERTEX_Z_DISTRUBUTION_TYPE']      = genDict['VERTEX_Z_DISTRUBUTION_TYPE']
+    else:
+        genDict['VERTEX_Z_DISTRUBUTION_TYPE']      = 'uniform'
+    
+    
     PU_DISTRIBUTION_SIGMA         =  genDict['PU_DISTRIBUTION_SIGMA']               
     PU_DISTRIBUTION_MEAN          =  genDict['PU_DISTRIBUTION_MEAN']                   
 
-    VERTEX_Z_DISTRIBUTION_SIGMA   =  genDict['VERTEX_Z_DISTRIBUTION_SIGMA']       
-    VERTEX_Z_DISTRIBUTION_MEAN    =  genDict['VERTEX_Z_DISTRIBUTION_MEAN']        
+    VERTEX_Z_DISTRUBUTION_TYPE    =  genDict['VERTEX_Z_DISTRUBUTION_TYPE']       
+    VERTEX_Z_DISTRIBUTION_MEAN    =  genDict['VERTEX_Z_DISTRIBUTION_MEAN']
+    
+    if genDict['VERTEX_Z_DISTRUBUTION_TYPE']=='uniform':
+        VERTEX_Z_DISTRIBUTION_WIDTH    =  genDict['VERTEX_Z_DISTRIBUTION_WIDTH']        
+    elif genDict['VERTEX_Z_DISTRUBUTION_TYPE']=='gaus':
+        VERTEX_Z_DISTRIBUTION_SIGMA    =  genDict['VERTEX_Z_DISTRIBUTION_SIGMA']        
 
     TRACK_Z_DISTRIBUTION_SIGMA    =  genDict['TRACK_Z_DISTRIBUTION_SIGMA']        
     TRACK_Z_DISTRIBUTION_BIAS     =  genDict['TRACK_Z_DISTRIBUTION_BIAS']              
 
     TRACKS_PER_VTX_SIGMA          =  genDict['TRACKS_PER_VTX_SIGMA']                   
-    TRACKS_PER_VTX_MEAN           =  genDict['TRACKS_PER_VTX_MEAN']            
+    TRACKS_PER_VTX_MEAN           =  genDict['TRACKS_PER_VTX_MEAN']    
+    
+    
     
     nv_list=np.asarray(np.random.normal(PU_DISTRIBUTION_MEAN,PU_DISTRIBUTION_SIGMA,NEVENTS),dtype='int')
     for i in range(NEVENTS):
@@ -63,13 +81,21 @@ def generateTrkVtxData(NEVENTS=10,genDict={}):
 
     nv=np.sum(nv_list)
     ntrk_list=np.asarray(np.random.normal(TRACKS_PER_VTX_MEAN,TRACKS_PER_VTX_SIGMA,nv),dtype='int')
+    
     for i in range(nv):
         while ntrk_list[i]<1:
-            ntrk_list[i]=int(np.random.normal(PU_DISTRIBUTION_MEAN,PU_DISTRIBUTION_SIGMA))  
+            ntrk_list[i]=int(np.random.normal(TRACKS_PER_VTX_MEAN,TRACKS_PER_VTX_SIGMA))  
 
     nt=np.sum(ntrk_list)
     track_dz=np.random.normal(TRACK_Z_DISTRIBUTION_BIAS,TRACK_Z_DISTRIBUTION_SIGMA,nt)
-    vtx_z  =np.random.normal(VERTEX_Z_DISTRIBUTION_MEAN,VERTEX_Z_DISTRIBUTION_SIGMA,nv)
+    
+    if genDict['VERTEX_Z_DISTRUBUTION_TYPE']=='gaus':
+        vtx_z  =np.random.normal(VERTEX_Z_DISTRIBUTION_MEAN,VERTEX_Z_DISTRIBUTION_SIGMA,nv)
+    elif genDict['VERTEX_Z_DISTRUBUTION_TYPE']=='uniform':
+        minV = VERTEX_Z_DISTRIBUTION_MEAN - 0.5 * VERTEX_Z_DISTRIBUTION_WIDTH
+        maxV = VERTEX_Z_DISTRIBUTION_MEAN + 0.5 * VERTEX_Z_DISTRIBUTION_WIDTH 
+        vtx_z  =np.random.uniform(minV,maxV,nv)
+    
     # print("track_dz shape = ", track_dz.shape,"( ",nt," )")
     # print("vtx_z shape   = ", vtx_z.shape,"( ",nv," )")
 
