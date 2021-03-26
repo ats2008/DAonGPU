@@ -29,20 +29,21 @@ __global__ void print_p_ik( Workspace *wrkspace,char c)
     auto Ntracks=wrkspace->nTracks;
     auto numberOfvertex=wrkspace->nVertex;
     auto p_ik= wrkspace->pik;
+    auto zti= wrkspace->zt;
     auto zk= wrkspace->zVtx;
 
     if (blockIdx.x<numberOfvertex)
     {
-    for(auto tid=threadIdx.x; tid<Ntracks; tid+=strideLen)
-    {
-        auto vid= blockIdx.x;
-	if(vid<numberOfvertex)
-	{
-            auto gid = vid*Ntracks + tid ;
-            printf("%c p, %d,%d, %f , %f,  |%d| \n",c,tid,vid,zk[vid],p_ik[gid],gid);
-	//cudaDeviceSynchronize();
-        }
-    }
+      for(auto tid=threadIdx.x; tid<Ntracks; tid+=strideLen)
+      {
+          auto vid= blockIdx.x;
+          if(vid<numberOfvertex)
+          {
+              auto gid = vid*Ntracks + tid ;
+              printf("%c p, %d,%d, %f , %f,  |%d|,%f \n",c,tid,vid,zk[vid],p_ik[gid],gid,zti[tid]);
+          cudaDeviceSynchronize();
+          }
+      }
     }
 }
 __global__ void set_rhok_as_unity( Workspace *wrkspace)
@@ -50,7 +51,7 @@ __global__ void set_rhok_as_unity( Workspace *wrkspace)
 
     auto strideLen = blockDim.x;
     auto numberOfvertex=wrkspace->nVertex;
-    auto rhok= wrkspace->rhok;
+    auto& rhok= wrkspace->rhok;
 
     for(auto tid=threadIdx.x; tid<numberOfvertex; tid+=strideLen)
     {
@@ -492,12 +493,13 @@ __device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 
     kernel_p_ik_numDenom_DF(wrkspace->pik,wrkspace->pik_denom,wrkspace->rhok,wrkspace->zt,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);
     __syncthreads();
-
+   cudaDeviceSynchronize();
     sumBlock_with_loop_DF(wrkspace->pik_denom,wrkspace->pik_denom,CurrentNvetex,N);
     __syncthreads();
-
+   cudaDeviceSynchronize();
     kernel_p_ik_DF(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);
     __syncthreads();
+   cudaDeviceSynchronize();
 }
 
 __device__ void updateVertexPositions(Workspace *wrkspace)
@@ -673,8 +675,8 @@ __global__ void vertexAssignmentPhase(Workspace * wrkspace)
         updateVertexPositions(wrkspace);
         __syncthreads();
 
-        updateVertexWeights(wrkspace);
-        __syncthreads();
+        //updateVertexWeights(wrkspace);
+        //__syncthreads();
 
         //checkAndMergeClusters();
         __syncthreads();
@@ -749,10 +751,14 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
     cudaDeviceSynchronize();
     set_rhok_as_unity<<<1,numberOfThreads>>>(wrkspace);
     
+    printf("before vertexAssignmentPhase ");
+    printf(cudaGetErrorName(cudaGetLastError()));
+    printf("\n");
+    
     printf("going into vertexAssignmentPhase \n");
+    numberOfThreads = 512;
     vertexAssignmentPhase<<<1,numberOfThreads>>>(wrkspace);
     printf("vertexAssignmentPhase returned  :  ");
-    printf(cudaGetErrorName(cudaGetLastError()));
     printf("\n");
     printf(cudaGetErrorName(cudaGetLastError()));
     printf("out of vertexAssignmentPhase \n\n\n");
