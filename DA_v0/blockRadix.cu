@@ -1,7 +1,7 @@
 #include <cub/cub.cuh>   // or equivalently <cub/device/device_radix_sort.cuh>
 #include <iostream>
 
-__global__ void ExampleKernel(float* keys)
+__global__ void ExampleKernel(float* keys,int N)
 {
     // Specialize BlockRadixSort for a 1D block of 128 threads owning 4 integer items each
     typedef cub::BlockRadixSort<float, 4 , 2> BlockRadixSort;
@@ -10,18 +10,23 @@ __global__ void ExampleKernel(float* keys)
     // Obtain a segment of consecutive items that are blocked across threads
     
     float thread_keys[2];
-    
-    thread_keys[0]=keys[threadIdx.x*2];
-    thread_keys[1]=keys[threadIdx.x*2+1];
+    if(threadIdx.x*2<N) 
+    {
+   	 thread_keys[0]=keys[threadIdx.x*2];
+   	 thread_keys[1]=keys[threadIdx.x*2+1];
+ //  	  __syncthreads();
+   	 // Collectively sort the keys
+   	 //BlockRadixSort(temp_storage).Sort(&thread_keys[threadIdx.x*2]);
+     BlockRadixSort(temp_storage).Sort(thread_keys);
      __syncthreads();
-    // Collectively sort the keys
-    //BlockRadixSort(temp_storage).Sort(&thread_keys[threadIdx.x*2]);
-    BlockRadixSort(temp_storage).Sort(thread_keys);
-     __syncthreads();
-    keys[threadIdx.x*2]   =thread_keys[0] ;
-    keys[threadIdx.x*2+1] =thread_keys[1] ;
-      printf(" [%d , %f , %f ] ",threadIdx.x,thread_keys[0],thread_keys[1]);
+   
+
+       keys[threadIdx.x*2]   =thread_keys[0] ;
+       keys[threadIdx.x*2+1] =thread_keys[1] ;
+       printf(" [%d , %f , %f ] ",threadIdx.x,thread_keys[0],thread_keys[1]);
+    }
 }
+
 int main()
 {
 	// Declare, allocate, and initialize device-accessible pointers for sorting data
@@ -42,7 +47,7 @@ int main()
 
 	cudaMemcpy(d_keys_in,h_keys_in, nb , cudaMemcpyHostToDevice);
 	
-	ExampleKernel<<<1,4,20>>>(d_keys_in);
+	ExampleKernel<<<1,8>>>(d_keys_in,8);
 	cudaMemcpy(h_keys_out,d_keys_in, nb , cudaMemcpyDeviceToHost);
 	
 	std::cout<<"Sorintg and copy done \n";

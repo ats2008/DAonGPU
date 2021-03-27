@@ -4,7 +4,7 @@
 #include "ZVertexSoA.h"
 #include "ZTrackSoA.h"
 #include "stdint.h"
-
+#include <cstddef>
 namespace gpuDAVertexer{
     static constexpr uint32_t MAXTRACKS = ZVertexSoA::MAXTRACKS;
     static constexpr uint32_t MAXVTX = ZVertexSoA::MAXVTX;
@@ -38,6 +38,7 @@ namespace gpuDAVertexer{
     float rhok               [MAXVTX];
     float rhok_numer[MAXTRACKS*MAXVTX];
     float rho_denom                  ;
+    
 
     int   hasThermalized[1];
 // Vertex Parameters
@@ -78,7 +79,8 @@ namespace gpuDAVertexer{
 	float uniquetrkweight;
 	float vertexSize;
 	float zmerge;
-
+   //  Temp variables
+    size_t   temp_storage_bytes            ;
 
    };
 }

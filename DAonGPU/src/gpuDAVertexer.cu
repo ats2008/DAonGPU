@@ -1,6 +1,7 @@
 #include "gpuDAVertexer.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <cub/cub.cuh>
 #include "stdio.h"
 
 //#define FULL_DEVICE_DEBUG
@@ -436,7 +437,7 @@ __global__ void initializeDAvertexReco( Workspace *wrkspace  )
         wrkspace->beta=1.0/(1e-9 + (wrkspace->tc)[0] );
         wrkspace->rhok[0]=1.0;
         wrkspace->rho_denom=N;
-        printf(" workspace rhok[0] = %d\f, beta set to %f ( 1.0/%f  ) bets split max : %f \n",wrkspace->rhok[0],wrkspace->beta,wrkspace->tc[0],wrkspace->betaSplitMax);
+        printf(" workspace rhok[0] = %f\f, beta set to %f ( 1.0/%f  ) bets split max : %f \n",wrkspace->rhok[0],wrkspace->beta,wrkspace->tc[0],wrkspace->betaSplitMax);
     }
 
 }
@@ -525,7 +526,6 @@ __device__ void checkAndSplitClusters(Workspace *wrkspace)
 {
     if(threadIdx.x==0)
         printf("In the checkAndSplitClusters\n");
-    auto CurrentNvetex = wrkspace->nVertex;
 
     kernel_z_k_spliting_DF(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->rhok,wrkspace->tc,&(wrkspace->nVertex) );
     __syncthreads();
@@ -535,35 +535,12 @@ __device__ void checkAndSplitClusters(Workspace *wrkspace)
 
 }
 
-__device__ void checkAndMergeClusters(Workspace *wrkspace)
+__device__ void thermalize(Workspace *wrkspace,int i,size_t max_iterations_for_thermalization=20)
 {
-    if(threadIdx.x==0)
-        printf("In the checkAndMergeClusters \n");
-
-}
-
-__global__ void dynamicSplittingPhase(Workspace * wrkspace)
-{
-    auto &workspace = *wrkspace;
-    int i=0;
-
-    while(workspace.beta < workspace.betaSplitMax)
-    {
-        // this could be avoided if we could store a sequnce of betas in the worspace precomputed
-        if(threadIdx.x==0)
-        {
-            workspace.beta*=workspace.betaFactor;
-            i+=1;
-            printf("at dynamicSplittingPhase with i = %d  zt[0] = %f  , zVtx[0] = %f , beta = %f \n ",i,workspace.zt[0],workspace.zVtx[0],workspace.beta);
-        }
-        else i++;
-
-        __syncthreads();
-
         auto N=wrkspace->nTracks;
         auto CurrentNvetex=wrkspace->nVertex;
 
-        for(int j=0; j<20; j++)
+        for(int j=0; j<max_iterations_for_thermalization; j++)
         {
 
             updateTrackToVertexProbablilities(wrkspace);
@@ -599,6 +576,86 @@ __global__ void dynamicSplittingPhase(Workspace * wrkspace)
             if(threadIdx.x==0)
                 *(wrkspace->hasThermalized)=0;
         }
+ 
+}
+
+__device__ void sort_vertexs(float *zVtxs,const int numberOfvertex)
+{
+    // Specialize BlockRadixSort for a 1D block of 128 threads owning 4 integer items each
+    const int NUM_ITEMS_PER_THREAD (4) ;
+    const int NUM_THREADS_FOR_RSORT(256);
+    int numThreadsInSort = numberOfvertex  / NUM_ITEMS_PER_THREAD;
+    
+    typedef cub::BlockRadixSort<float, NUM_THREADS_FOR_RSORT , NUM_ITEMS_PER_THREAD> BlockRadixSort;
+    // Allocate shared memory for BlockRadixSort
+    __shared__ typename BlockRadixSort::TempStorage temp_storage;
+    // Obtain a segment of consecutive items that are blocked across threads
+    
+    float tmpArray[4];
+
+    auto limit = 0;
+    if( threadIdx.x<NUM_THREADS_FOR_RSORT )
+    {
+      limit=NUM_ITEMS_PER_THREAD;
+      if(threadIdx.x == numThreadsInSort-1) {
+       limit= numberOfvertex%NUM_ITEMS_PER_THREAD;
+      
+      for(auto i=0;i<limit;i++)
+        tmpArray[i]=zVtxs[threadIdx.x*NUM_ITEMS_PER_THREAD + i ];
+      }
+      
+      for(auto i=limit;i<NUM_ITEMS_PER_THREAD;i++)
+      	tmpArray[i]=1e9;
+      
+      BlockRadixSort(temp_storage).Sort(tmpArray);
+      
+      for(auto i=0;i<limit;i++)
+          zVtxs[threadIdx.x*NUM_ITEMS_PER_THREAD + i ] = tmpArray[i];
+
+    }
+}
+
+__device__ void checkAndMergeClusters(Workspace *wrkspace)
+{
+    if(threadIdx.x==0)
+        printf("In the checkAndMergeClusters \n");
+ 
+    if(threadIdx.x==0)
+        for(int ii=0; ii<wrkspace->nVertex; ii++)
+            printf("before vertex [%d], %f \n",ii,wrkspace->zVtx[ii]);
+ 
+    cudaDeviceSynchronize();
+    sort_vertexs(wrkspace->zVtx,wrkspace->nVertex);
+    cudaDeviceSynchronize();
+   
+    if(threadIdx.x==0)
+        for(int ii=0; ii<wrkspace->nVertex; ii++)
+            printf("after vertex [%d], %f \n",ii,wrkspace->zVtx[ii]);
+    cudaDeviceSynchronize();
+   
+    return;
+
+}
+
+__global__ void dynamicSplittingPhase(Workspace * wrkspace)
+{
+    auto &workspace = *wrkspace;
+    int i=0;
+
+    while(workspace.beta < workspace.betaSplitMax)
+    {
+        // this could be avoided if we could store a sequnce of betas in the worspace precomputed
+        if(threadIdx.x==0)
+        {
+            workspace.beta*=workspace.betaFactor;
+            i+=1;
+            printf("at dynamicSplittingPhase with i = %d  zt[0] = %f  , zVtx[0] = %f , beta = %f \n ",i,workspace.zt[0],workspace.zVtx[0],workspace.beta);
+        }
+        else i++;
+
+        __syncthreads();
+	
+	thermalize(wrkspace,i,20);
         __syncthreads();
 
         updateClusterCriticalTemperatures(wrkspace);
@@ -606,13 +663,20 @@ __global__ void dynamicSplittingPhase(Workspace * wrkspace)
 
         checkAndSplitClusters(wrkspace);
         __syncthreads();
+	
+	thermalize(wrkspace,i,20);
+        __syncthreads();
+
+	checkAndMergeClusters(wrkspace);
 
         if(threadIdx.x==0)
             for(int ii=0; ii<wrkspace->nVertex; ii++)
                 printf("vertex [%d] = %f \n",ii,wrkspace->zVtx[ii]);
     }
 
-    //checkAndMergeClusters();
+    checkAndMergeClusters(wrkspace);
+    thermalize(wrkspace,i,20);
+    
     if(threadIdx.x==0)
         for(int ii=0; ii<wrkspace->nVertex; ii++)
             printf("*vertex [%d], %f \n",ii,wrkspace->zVtx[ii]);
