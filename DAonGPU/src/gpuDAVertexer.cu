@@ -4,7 +4,7 @@
 #include <cub/cub.cuh>
 #include "stdio.h"
 
-#define FULL_DEVICE_DEBUG
+//#define FULL_DEVICE_DEBUG
 
 namespace gpuDAVertexer {
 
@@ -41,13 +41,16 @@ __global__ void initializeWorspace(Workspace * wrkspace)
     {
         wrkspace->zVtx[idx]=1e9;
         wrkspace->rhok[idx]=1;
+        wrkspace->dauterMap[idx]=-1;
     }
     if(idx==0)
     {
         wrkspace->nVertex=0;
+        wrkspace->temp_nVertex=0;
         wrkspace->betaFactor=1.5;
         wrkspace->betaSplitMax=0.24;
     	wrkspace->rho_denom=1.0;
+        wrkspace->maxDZforMerge=0.01;
     }
 
 }
@@ -311,7 +314,7 @@ __device__ void check_ifThermalized(float * deltas,float deltaTol,int *hasTherma
 }
 
 // probably pass on the z2 avg and spit approximating the xluster to be 2 gaussians
-__device__ void kernel_z_k_spliting_DF(float temp,float *z_k,float *rhok, float * tc_clusters,uint32_t *cur_NV)
+__device__ void kernel_z_k_spliting_DF(float temp,float *z_k,float *rhok,int * dauterMap, float * tc_clusters,uint32_t *cur_NV)
 {
     /*
        This kernel take the vertex list and split the last vertex into z-delta,z+delta (delta between 0 and 1.0)
@@ -340,15 +343,16 @@ __device__ void kernel_z_k_spliting_DF(float temp,float *z_k,float *rhok, float 
     auto deltaZk  =0.01;
     z_k[tid] = z_k_aux - deltaZk;
     z_k[idx] = z_k_aux + deltaZk;
+    dauterMap[tid]=idx;
     
     rhok[tid]*=0.5;
     rhok[idx] =rhok[tid];
     printf("Splitting vertex %d at T= %f  and Tc = %f, delta = %f z_old = %f z_new[%d] = %f\n ",tid,temp,tc_clusters[tid],deltaZk,z_k[tid],idx,z_k[idx]);
 }
-__global__ void kernel_z_k_spliting_DF_DK(float temp,float *z_k,float *rhok, float * tc_clusters,uint32_t *cur_NV)
+__global__ void kernel_z_k_spliting_DF_DK(float temp,float *z_k,float *rhok,int *dauterMap, float * tc_clusters,uint32_t *cur_NV)
 {
 
-    kernel_z_k_spliting_DF(temp,z_k, rhok,tc_clusters,cur_NV) ;
+    kernel_z_k_spliting_DF(temp,z_k, rhok,dauterMap,tc_clusters,cur_NV) ;
 }
 
 __device__ void kernel_rho_k_num_DF( float *p_ik, float *rho_k_num, float *p_i, int Ntracks, int numberOfvertex )
@@ -485,6 +489,7 @@ __device__ void updateVertexPositions(Workspace *wrkspace)
 
 
 
+
 __device__ void updateVertexWeights(Workspace * wrkspace)
 {
     if(threadIdx.x==0)
@@ -527,7 +532,7 @@ __device__ void checkAndSplitClusters(Workspace *wrkspace)
     if(threadIdx.x==0)
         printf("In the checkAndSplitClusters\n");
 
-    kernel_z_k_spliting_DF(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->rhok,wrkspace->tc,&(wrkspace->nVertex) );
+    kernel_z_k_spliting_DF(1.0/wrkspace->beta,wrkspace->zVtx,wrkspace->rhok,wrkspace->dauterMap,wrkspace->tc,&(wrkspace->nVertex) );
     __syncthreads();
 
     if(threadIdx.x==0)
@@ -579,48 +584,110 @@ __device__ void thermalize(Workspace *wrkspace,int i,size_t max_iterations_for_t
  
 }
 
-__device__ void sort_vertexs(float *zVtxs,const int numberOfvertex)
-{
-    // Specialize BlockRadixSort for a 1D block of 128 threads owning 4 integer items each
-    const int NUM_ITEMS_PER_THREAD (4) ;
-    const int NUM_THREADS_FOR_RSORT(256);
-    int numThreadsInSort = numberOfvertex  / NUM_ITEMS_PER_THREAD +1 ;
-    
-    typedef cub::BlockRadixSort<float, NUM_THREADS_FOR_RSORT , NUM_ITEMS_PER_THREAD> BlockRadixSort;
-    // Allocate shared memory for BlockRadixSort
-    __shared__ typename BlockRadixSort::TempStorage temp_storage;
-    // Obtain a segment of consecutive items that are blocked across threads
-    
-    float tmpArray[4];
+//__device__ void sort_vertexs(float *zVtxs,const int numberOfvertex)
+//{
+//    // Specialize BlockRadixSort for a 1D block of 128 threads owning 4 integer items each
+//    const int NUM_ITEMS_PER_THREAD (4) ;
+//    const int NUM_THREADS_FOR_RSORT(256);
+//    int numThreadsInSort = numberOfvertex  / NUM_ITEMS_PER_THREAD +1 ;
+//    
+//    typedef cub::BlockRadixSort<float, NUM_THREADS_FOR_RSORT , NUM_ITEMS_PER_THREAD> BlockRadixSort;
+//    // Allocate shared memory for BlockRadixSort
+//    __shared__ typename BlockRadixSort::TempStorage temp_storage;
+//    // Obtain a segment of consecutive items that are blocked across threads
+//    
+//    float tmpArray[4];
+//
+//    auto limit = 0;
+//    if( threadIdx.x<NUM_THREADS_FOR_RSORT )
+//    {
+//      if(threadIdx.x<numThreadsInSort) {
+//      limit=NUM_ITEMS_PER_THREAD;
+//      if(threadIdx.x == numThreadsInSort-1) 
+//       limit= numberOfvertex%NUM_ITEMS_PER_THREAD;
+//      
+//      for(auto i=0;i<limit;i++)
+//        tmpArray[i]=zVtxs[threadIdx.x*NUM_ITEMS_PER_THREAD + i ];
+//      
+//      }
+//      for(auto i=limit;i<NUM_ITEMS_PER_THREAD;i++)
+//      	tmpArray[i]=1e9;
+//      __syncthreads();
+//      if(threadIdx.x<numThreadsInSort) {
+//       
+//       printf("%d thread idx -> ",threadIdx.x);
+//       for(auto i=0;i<NUM_ITEMS_PER_THREAD;i++)
+//          printf("%f , ",  tmpArray[i] );
+//      printf("\n");
+//      }
+//      BlockRadixSort(temp_storage).Sort(tmpArray);
+//      
+//      for(auto i=0;i<limit;i++)
+//          zVtxs[threadIdx.x*NUM_ITEMS_PER_THREAD + i ] = tmpArray[i];
+//
+//    }
+//}
 
-    auto limit = 0;
-    if( threadIdx.x<NUM_THREADS_FOR_RSORT )
+__device__ void checkAndMergeDaughter(float *zVtx,float *zVtx_temp,float *rhok,float *rhok_temp,int *dauterMap,float minZVtxSeparation,int currVtxCount)
+{
+   if(threadIdx.x==0)
+        printf("In the checkIfToMergeDaughter()\n");
+   
+  if(threadIdx.x < currVtxCount)
     {
-      if(threadIdx.x<numThreadsInSort) {
-      limit=NUM_ITEMS_PER_THREAD;
-      if(threadIdx.x == numThreadsInSort-1) 
-       limit= numberOfvertex%NUM_ITEMS_PER_THREAD;
-      
-      for(auto i=0;i<limit;i++)
-        tmpArray[i]=zVtxs[threadIdx.x*NUM_ITEMS_PER_THREAD + i ];
-      
-      }
-      for(auto i=limit;i<NUM_ITEMS_PER_THREAD;i++)
-      	tmpArray[i]=1e9;
-      __syncthreads();
-      if(threadIdx.x<numThreadsInSort) {
-       
-       printf("%d thread idx -> ",threadIdx.x);
-       for(auto i=0;i<NUM_ITEMS_PER_THREAD;i++)
-          printf("%f , ",  tmpArray[i] );
-      printf("\n");
-      }
-      BlockRadixSort(temp_storage).Sort(tmpArray);
-      
-      for(auto i=0;i<limit;i++)
-          zVtxs[threadIdx.x*NUM_ITEMS_PER_THREAD + i ] = tmpArray[i];
+     auto idx=threadIdx.x;
+      if(dauterMap[idx]>-1)
+      {
+            auto dau=dauterMap[idx];
+
+            if(abs(zVtx[idx]-zVtx[dau])<minZVtxSeparation)
+            {
+                zVtx_temp[idx]      = (rhok[idx]*zVtx[idx] + rhok[dau]*zVtx[dau])/(1e-20 + rhok[dau]+rhok[idx]);
+                rhok_temp[idx]      = rhok[idx]+rhok[dau];
+                dauterMap[idx]      = -1;
+                dauterMap[dau]      = -2;
+            }
+            else
+            {
+                zVtx_temp[idx]=zVtx[idx];
+                rhok_temp[idx]=rhok[idx];
+                if(dauterMap[idx]!=-2)   dauterMap[idx] = -1;
+            }
+
+#ifdef FULL_DEVICE_DEBUG
+        printf("checkAndMergeDaughter DEVICE i = %d (dau = %d ): deltaZ =  %f ( <? %f )  :  mergeing zs %f,%f -> %f , rhos %f,%f -> %f \n ",\\
+                    idx,dau,abs(zVtx[idx]-zVtx[dau]),minZVtxSeparation,\\
+                    zVtx[idx],zVtx[dau], zVtx_temp[idx] ,\\
+                    rhok[idx],rhok[dau],rhok_temp[idx]);
+#endif
 
     }
+    else
+    {
+    
+        zVtx_temp[idx]=zVtx[idx];
+        rhok_temp[idx]=rhok[idx];
+        if(dauterMap[idx]!=-2)   dauterMap[idx] = -1;
+    
+    }
+      
+   }
+}
+
+__device__ void updateMergedVtxList(float *zVtx,float *rhok,float* zVtx_temp,float *rhok_temp,int *dauterMap,uint32_t currVtxCount,uint32_t *nv_tmp)
+{
+ 
+  if(threadIdx.x<currVtxCount)
+    {
+        
+        if(dauterMap[threadIdx.x]==-2) return;
+        
+        auto nidx=atomicAdd(nv_tmp,1);
+
+        zVtx[nidx]=zVtx_temp[threadIdx.x];
+        rhok[nidx]=rhok_temp[threadIdx.x];
+    }
+
 }
 
 __device__ void checkAndMergeClusters(Workspace *wrkspace)
@@ -633,16 +700,24 @@ __device__ void checkAndMergeClusters(Workspace *wrkspace)
             printf("before vertex [%d], %f \n",ii,wrkspace->zVtx[ii]);
  
     cudaDeviceSynchronize();
-    sort_vertexs(wrkspace->zVtx,wrkspace->nVertex);
+    checkAndMergeDaughter(wrkspace->zVtx,wrkspace->zVtx_temp,wrkspace->rhok,wrkspace->rhok_temp,wrkspace->dauterMap,wrkspace->maxDZforMerge,wrkspace->nVertex);
+    __syncthreads();
     cudaDeviceSynchronize();
-   
+    updateMergedVtxList(wrkspace->zVtx,wrkspace->rhok,wrkspace->zVtx_temp,wrkspace->rhok_temp,wrkspace->dauterMap,wrkspace->nVertex,&(wrkspace->temp_nVertex));
+ //   sort_vertexs(wrkspace->zVtx,wrkspace->nVertex);
+    cudaDeviceSynchronize();
+    
+    if(threadIdx.x==0)
+    {
+        wrkspace->nVertex=wrkspace->temp_nVertex;
+        wrkspace->temp_nVertex=0;
+    }
     if(threadIdx.x==0)
         for(int ii=0; ii<wrkspace->nVertex; ii++)
             printf("after vertex [%d], %f \n",ii,wrkspace->zVtx[ii]);
     cudaDeviceSynchronize();
    
     return;
-
 }
 
 __global__ void dynamicSplittingPhase(Workspace * wrkspace)
@@ -742,7 +817,7 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
     auto numberOfBlocks  = (MAXTRACKS/numberOfThreads) + 1;
 
     loadTracks<<<numberOfBlocks,numberOfThreads>>>(tracks,wrkspace);
-    printf(cudaGetErrorName(cudaGetLastError()));
+    std::cout<<(cudaGetErrorName(cudaGetLastError()));
     printf("\n");
     cudaDeviceSynchronize();
 
@@ -750,14 +825,14 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
     printf("going into initializeWorspace \n");
     initializeWorspace<<<256,1024>>>(wrkspace);
     printf("initializeWorspace returned  :  ");
-    printf(cudaGetErrorName(cudaGetLastError()));
+    std::cout<<(cudaGetErrorName(cudaGetLastError()));
     printf("\n");
     cudaDeviceSynchronize();
 
     numberOfThreads = 1024;
     initializeDAvertexReco<<<1,numberOfThreads>>>(wrkspace);
     printf("initializeDAvertexReco returned  :  ");
-    printf(cudaGetErrorName(cudaGetLastError()));
+    std::cout<<(cudaGetErrorName(cudaGetLastError()));
     printf("\n");
     cudaDeviceSynchronize();
     printf("numberOfThreads = %d\n",numberOfThreads);
@@ -766,7 +841,7 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
     numberOfThreads = 512;
     dynamicSplittingPhase<<<1,numberOfThreads>>>(wrkspace);
     printf("dynamicSplittingPhase returned  :  ");
-    printf(cudaGetErrorName(cudaGetLastError()));
+    std::cout<<(cudaGetErrorName(cudaGetLastError()));
     printf("\n");
     cudaDeviceSynchronize();
     printf("\n");
@@ -777,9 +852,9 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
     printf("going into vertexAssignmentPhase \n");
     vertexAssignmentPhase<<<1,numberOfThreads>>>(wrkspace);
     printf("vertexAssignmentPhase returned  :  ");
-    printf(cudaGetErrorName(cudaGetLastError()));
+    std::cout<<(cudaGetErrorName(cudaGetLastError()));
     printf("\n");
-    printf(cudaGetErrorName(cudaGetLastError()));
+    std::cout<<(cudaGetErrorName(cudaGetLastError()));
     printf("out of vertexAssignmentPhase \n");
     cudaDeviceSynchronize();
  

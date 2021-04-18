@@ -14,6 +14,7 @@ namespace gpuDAVertexer{
  // Track Parameters 
     uint32_t nTracks;
     uint32_t nVertex  ;
+    uint32_t temp_nVertex  ;
 
     uint16_t itrk[MAXTRACKS];
     float zt[MAXTRACKS];
@@ -38,7 +39,11 @@ namespace gpuDAVertexer{
     float rhok               [MAXVTX];
     float rhok_numer[MAXTRACKS*MAXVTX];
     float rho_denom                  ;
+   
+    float rhok_temp     [MAXVTX];
+    float zVtx_temp    [MAXVTX];
     
+    int dauterMap        [MAXVTX];
 
     int   hasThermalized[1];
 // Vertex Parameters
