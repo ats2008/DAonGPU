@@ -50,7 +50,7 @@ __global__ void initializeWorspace(Workspace * wrkspace)
         wrkspace->betaFactor=1.5;
         wrkspace->betaSplitMax=0.24;
     	wrkspace->rho_denom=1.0;
-        wrkspace->maxDZforMerge=0.01;
+        wrkspace->maxDZforMerge=0.001;
     }
 
 }
