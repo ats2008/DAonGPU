@@ -23,6 +23,44 @@ __global__ void demoKernel(ZTrackSoA * tracks,int n)
     }
 }
 
+__global__ void print_p_ik( Workspace *wrkspace,char c)
+{
+
+    auto strideLen = blockDim.x;
+    auto Ntracks=wrkspace->nTracks;
+    auto numberOfvertex=wrkspace->nVertex;
+    auto p_ik= wrkspace->pik;
+    auto zti= wrkspace->zt;
+    auto zk= wrkspace->zVtx;
+
+    if (blockIdx.x<numberOfvertex)
+    {
+      for(auto tid=threadIdx.x; tid<Ntracks; tid+=strideLen)
+      {
+          auto vid= blockIdx.x;
+          if(vid<numberOfvertex)
+          {
+              auto gid = vid*Ntracks + tid ;
+              printf("%c p, %d,%d, %f , %f,  |%d|,%f \n",c,tid,vid,zk[vid],p_ik[gid],gid,zti[tid]);
+          cudaDeviceSynchronize();
+          }
+      }
+    }
+}
+__global__ void set_rhok_as_unity( Workspace *wrkspace)
+{
+
+    auto strideLen = blockDim.x;
+    auto numberOfvertex=wrkspace->nVertex;
+    auto& rhok= wrkspace->rhok;
+
+    for(auto tid=threadIdx.x; tid<numberOfvertex; tid+=strideLen)
+    {
+	rhok[tid]=1.0;
+    }
+}
+
+
 __global__ void initializeWorspace(Workspace * wrkspace)
 {
 
@@ -47,8 +85,9 @@ __global__ void initializeWorspace(Workspace * wrkspace)
     {
         wrkspace->nVertex=0;
         wrkspace->temp_nVertex=0;
-        wrkspace->betaFactor=1.5;
+        wrkspace->betaFactor=1.667;
         wrkspace->betaSplitMax=0.24;
+        wrkspace->betaMax=2;
     	wrkspace->rho_denom=1.0;
         wrkspace->maxDZforMerge=0.0023;
     }
@@ -462,12 +501,13 @@ __device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 #endif
     kernel_p_ik_numDenom_DF(wrkspace->pik,wrkspace->pik_denom,wrkspace->rhok,wrkspace->zt,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);
     __syncthreads();
-
+   cudaDeviceSynchronize();
     sumBlock_with_loop_DF(wrkspace->pik_denom,wrkspace->pik_denom,CurrentNvetex,N);
     __syncthreads();
-
+   cudaDeviceSynchronize();
     kernel_p_ik_DF(wrkspace->pik,wrkspace->pik_denom,N,CurrentNvetex);
     __syncthreads();
+   cudaDeviceSynchronize();
 }
 
 __device__ void updateVertexPositions(Workspace *wrkspace)
@@ -785,8 +825,8 @@ __global__ void vertexAssignmentPhase(Workspace * wrkspace)
     // this may require some restructuring
     // there is a possibility of this to paralized with each block taking up thermalization of an individual vertex and moving the checkAndMergeClusters() to another __global__ kernel
     int i=0;
-    while( i<2  /*workspace.beta < workspace.betaMax*/ )
-    //while( workspace.beta < workspace.betaMax )
+ //   while( i<2  /*workspace.beta < workspace.betaMax*/ )
+    while( workspace.beta < workspace.betaMax )
     {
         updateTrackToVertexProbablilities(wrkspace);
         __syncthreads();
@@ -794,8 +834,8 @@ __global__ void vertexAssignmentPhase(Workspace * wrkspace)
         updateVertexPositions(wrkspace);
         __syncthreads();
 
-        updateVertexWeights(wrkspace);
-        __syncthreads();
+        //updateVertexWeights(wrkspace);
+        //__syncthreads();
 
         //checkAndMergeClusters();
         __syncthreads();
@@ -824,6 +864,11 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
 
     //demoKernel<<<2,10>>>(tracks,n);
     //udaDeviceSynchronize();
+        size_t size;
+	cudaDeviceGetLimit(&size,cudaLimitPrintfFifoSize);
+	printf("  size =  %d\n",size);
+	cudaDeviceSetLimit(cudaLimitPrintfFifoSize, 10*size);
+	printf("  size =  %d\n",size);
 
     auto numberOfThreads = 128;
     auto numberOfBlocks  = (MAXTRACKS/numberOfThreads) + 1;
@@ -857,17 +902,27 @@ ZVertexSoA * DAVertexer::makeAsync(ZTrackSoA * tracks,int n)
     printf("\n");
     cudaDeviceSynchronize();
     printf("\n");
-    printf("Out of dynamicSplittingPhase\n");
+    printf("Out of dynamicSplittingPhase\n\n\n");
 
-    return nullptr;
-
+    numberOfThreads = 1024;
+    numberOfBlocks  = 1024;
+    print_p_ik<<<numberOfBlocks,numberOfThreads>>>(wrkspace,'?');
+    cudaDeviceSynchronize();
+    set_rhok_as_unity<<<1,numberOfThreads>>>(wrkspace);
+    
+    printf("before vertexAssignmentPhase ");
+    printf(cudaGetErrorName(cudaGetLastError()));
+    printf("\n");
+    
     printf("going into vertexAssignmentPhase \n");
+    numberOfThreads = 512;
     vertexAssignmentPhase<<<1,numberOfThreads>>>(wrkspace);
     printf("vertexAssignmentPhase returned  :  ");
-    std::cout<<(cudaGetErrorName(cudaGetLastError()));
     printf("\n");
-    std::cout<<(cudaGetErrorName(cudaGetLastError()));
-    printf("out of vertexAssignmentPhase \n");
+    printf(cudaGetErrorName(cudaGetLastError()));
+    printf("out of vertexAssignmentPhase \n\n\n");
+    cudaDeviceSynchronize();
+    print_p_ik<<<numberOfBlocks,numberOfThreads>>>(wrkspace,'%');
     cudaDeviceSynchronize();
  
     printf("\n_________________________________________\n");
