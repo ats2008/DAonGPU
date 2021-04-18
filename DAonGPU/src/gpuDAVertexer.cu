@@ -4,7 +4,7 @@
 #include <cub/cub.cuh>
 #include "stdio.h"
 
-//#define FULL_DEVICE_DEBUG
+#define FULL_DEVICE_DEBUG
 
 namespace gpuDAVertexer {
 
@@ -584,7 +584,7 @@ __device__ void sort_vertexs(float *zVtxs,const int numberOfvertex)
     // Specialize BlockRadixSort for a 1D block of 128 threads owning 4 integer items each
     const int NUM_ITEMS_PER_THREAD (4) ;
     const int NUM_THREADS_FOR_RSORT(256);
-    int numThreadsInSort = numberOfvertex  / NUM_ITEMS_PER_THREAD;
+    int numThreadsInSort = numberOfvertex  / NUM_ITEMS_PER_THREAD +1 ;
     
     typedef cub::BlockRadixSort<float, NUM_THREADS_FOR_RSORT , NUM_ITEMS_PER_THREAD> BlockRadixSort;
     // Allocate shared memory for BlockRadixSort
@@ -596,17 +596,25 @@ __device__ void sort_vertexs(float *zVtxs,const int numberOfvertex)
     auto limit = 0;
     if( threadIdx.x<NUM_THREADS_FOR_RSORT )
     {
+      if(threadIdx.x<numThreadsInSort) {
       limit=NUM_ITEMS_PER_THREAD;
-      if(threadIdx.x == numThreadsInSort-1) {
+      if(threadIdx.x == numThreadsInSort-1) 
        limit= numberOfvertex%NUM_ITEMS_PER_THREAD;
       
       for(auto i=0;i<limit;i++)
         tmpArray[i]=zVtxs[threadIdx.x*NUM_ITEMS_PER_THREAD + i ];
-      }
       
+      }
       for(auto i=limit;i<NUM_ITEMS_PER_THREAD;i++)
       	tmpArray[i]=1e9;
-      
+      __syncthreads();
+      if(threadIdx.x<numThreadsInSort) {
+       
+       printf("%d thread idx -> ",threadIdx.x);
+       for(auto i=0;i<NUM_ITEMS_PER_THREAD;i++)
+          printf("%f , ",  tmpArray[i] );
+      printf("\n");
+      }
       BlockRadixSort(temp_storage).Sort(tmpArray);
       
       for(auto i=0;i<limit;i++)
