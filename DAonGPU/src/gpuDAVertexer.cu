@@ -50,7 +50,7 @@ __global__ void initializeWorspace(Workspace * wrkspace)
         wrkspace->betaFactor=1.5;
         wrkspace->betaSplitMax=0.24;
     	wrkspace->rho_denom=1.0;
-        wrkspace->maxDZforMerge=0.001;
+        wrkspace->maxDZforMerge=0.0023;
     }
 
 }
@@ -340,7 +340,7 @@ __device__ void kernel_z_k_spliting_DF(float temp,float *z_k,float *rhok,int * d
     */
 
     //auto deltaZk  = abs(0.2*z_k[tid]);
-    auto deltaZk  =0.01;
+    auto deltaZk  =0.001;
     z_k[tid] = z_k_aux - deltaZk;
     z_k[idx] = z_k_aux + deltaZk;
     dauterMap[tid]=idx;
@@ -448,15 +448,18 @@ __global__ void initializeDAvertexReco( Workspace *wrkspace  )
 
 __device__ void updateTrackToVertexProbablilities(Workspace * wrkspace)
 {
+#ifdef FULL_DEVICE_DEBUG
     if(threadIdx.x==0)
         printf("In the updateTrackToVertexProbablilities\n");
-
+#endif
 //      >>>>>>>>> KERNELs for  kernel_p_ik <<<<<<<<<
     auto N=wrkspace->nTracks;
     auto CurrentNvetex=wrkspace->nVertex;
+
+#ifdef FULL_DEVICE_DEBUG
     if(threadIdx.x==0)
         printf("with N = %d , CurrentNvetex = %d \n",N,CurrentNvetex);
-
+#endif
     kernel_p_ik_numDenom_DF(wrkspace->pik,wrkspace->pik_denom,wrkspace->rhok,wrkspace->zt,wrkspace->zVtx, wrkspace->dz2, wrkspace->beta, N, CurrentNvetex);
     __syncthreads();
 
@@ -471,10 +474,11 @@ __device__ void updateVertexPositions(Workspace *wrkspace)
 {
     auto N=wrkspace->nTracks;
     auto CurrentNvetex=wrkspace->nVertex;
-
+#ifdef FULL_DEVICE_DEBUG
     if(threadIdx.x==0)
         printf("In the updateVertexPositions wit %d vertexes \n",wrkspace->nVertex);
-    //      >>>>>>>>>KERNELs for ZVtx Update<<<<<<<<<
+#endif
+//      >>>>>>>>>KERNELs for ZVtx Update<<<<<<<<<
 
     kernel_z_ik_num_DF(wrkspace->pik, wrkspace->zk_numer, wrkspace->pi, wrkspace->zt,wrkspace->dz2, N, CurrentNvetex);
     kernel_z_ik_den_DF(wrkspace->pik, wrkspace->zk_denom, wrkspace->pi, wrkspace->zt, wrkspace->dz2, N, CurrentNvetex);
@@ -492,9 +496,11 @@ __device__ void updateVertexPositions(Workspace *wrkspace)
 
 __device__ void updateVertexWeights(Workspace * wrkspace)
 {
+
+#ifdef FULL_DEVICE_DEBUG
     if(threadIdx.x==0)
         printf("In the updateVertexWeights\n");
-
+#endif
     auto N=wrkspace->nTracks;
     auto CurrentNvetex=wrkspace->nVertex;
 
@@ -560,7 +566,9 @@ __device__ void thermalize(Workspace *wrkspace,int i,size_t max_iterations_for_t
             //****** === Free Energy Monitoring   === ****************///
             if(threadIdx.x ==0 )
             {
+#ifdef FULL_DEVICE_DEBUG
                 printf("\n\nAt i = %d , j =%d , beta =%f \n",i,j,wrkspace->beta);
+#endif                
                 kernel_findFreeEnergyPartA<<<CurrentNvetex,N>>>(wrkspace->FEnergyA,\\
                         wrkspace->zt,wrkspace->zVtx,\\
                         wrkspace->dz2, wrkspace->beta,CurrentNvetex,N);
@@ -654,12 +662,12 @@ __device__ void checkAndMergeDaughter(float *zVtx,float *zVtx_temp,float *rhok,f
                 if(dauterMap[idx]!=-2)   dauterMap[idx] = -1;
             }
 
-#ifdef FULL_DEVICE_DEBUG
+//#ifdef FULL_DEVICE_DEBUG
         printf("checkAndMergeDaughter DEVICE i = %d (dau = %d ): deltaZ =  %f ( <? %f )  :  mergeing zs %f,%f -> %f , rhos %f,%f -> %f \n ",\\
                     idx,dau,abs(zVtx[idx]-zVtx[dau]),minZVtxSeparation,\\
                     zVtx[idx],zVtx[dau], zVtx_temp[idx] ,\\
                     rhok[idx],rhok[dau],rhok_temp[idx]);
-#endif
+//#endif
 
     }
     else
@@ -712,6 +720,7 @@ __device__ void checkAndMergeClusters(Workspace *wrkspace)
         wrkspace->nVertex=wrkspace->temp_nVertex;
         wrkspace->temp_nVertex=0;
     }
+    __syncthreads();
     if(threadIdx.x==0)
         for(int ii=0; ii<wrkspace->nVertex; ii++)
             printf("after vertex [%d], %f \n",ii,wrkspace->zVtx[ii]);
@@ -751,6 +760,9 @@ __global__ void dynamicSplittingPhase(Workspace * wrkspace)
         __syncthreads();
 
 	checkAndMergeClusters(wrkspace);
+    
+    thermalize(wrkspace,i,20);
+        __syncthreads();
 
         if(threadIdx.x==0)
             for(int ii=0; ii<wrkspace->nVertex; ii++)
